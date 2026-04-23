@@ -8,15 +8,14 @@
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QMetaObject, QRect,
+from PySide6.QtCore import (Slot, QCoreApplication, QMetaObject, QRect,
                             QSize, Qt, QRectF, QTimer)
 from PySide6.QtGui import (QIcon, QGuiApplication)
 from PySide6.QtWidgets import (QGridLayout, QHBoxLayout,
                                QLabel, QMainWindow, QMenuBar,
                                QPushButton, QSizePolicy, QStatusBar, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget, QCheckBox)
-from pyqttoast import Toast, ToastPreset, ToastPosition
-
+from pyqttoast import Toast, ToastPosition, ToastPreset
 from coordinate_manipulation import rectangle_xywh
 from glossit_connect_glosses import ConnectedPair, Word
 from glossit_dataclasses import GlossLine, LineType
@@ -54,6 +53,7 @@ class Ui_MainWindow(object):
     Methods:
         setupUI (QMainWindow): Sets up the UI window attributes.
         retranslateUi (QMainWindow): Sets label contents, button displayed names, etc.
+        show_toast (str, str, ToastPreset): Shows a toast notification.
 
     Private Methods:
         _tree_from_chains (list[list[ConnectedPair]]): Updates the treeDisplayChains widget according to the
@@ -513,20 +513,17 @@ class Ui_MainWindow(object):
             else:
                 LoggerSingleton().logger.log_warning("Selected object is neither GlossLine nor Word")
 
-            toast = Toast(self.centralwidget)
-            toast.setDuration(4000)
             if current_line_id is not None:
                 QGuiApplication.clipboard().setText(current_line_id)
-                toast.setTitle('Success!')
-                toast.setText('Copied Line ID to clipboard.')
-                toast.applyPreset(ToastPreset.SUCCESS)
+                toast_title = "Success!"
+                toast_text = "Copied Line ID to clipboard."
+                toast_preset = ToastPreset.SUCCESS
             else:
-                toast.setTitle('Failure!')
-                toast.setText('Could not copy line ID to clipboard.')
-                toast.applyPreset(ToastPreset.ERROR)
-            toast.setPositionRelativeToWidget(self.centralwidget)
-            toast.setPosition(ToastPosition.BOTTOM_RIGHT)
-            toast.show()
+                toast_title = "Failure!"
+                toast_text = "Could not copy line ID to clipboard."
+                toast_preset = ToastPreset.ERROR
+            self.show_toast(toast_title, toast_text, toast_preset)
+
         self.labelCurrentLineId.clicked.connect(on_copy_line_id_to_clipboard)
 
         # Center image view widget to unconnected gloss and go to the next one
@@ -603,6 +600,24 @@ class Ui_MainWindow(object):
         self.buttonUndo.setText(QCoreApplication.translate("MainWindow", u"Undo", None))
         self.buttonRedo.setText(QCoreApplication.translate("MainWindow", u"Redo", None))
     # retranslateUi
+
+    @Slot(str, str, int)
+    def show_toast(self, toast_title: str, toast_text: str, toast_preset: ToastPreset):
+        """
+        Shows a toast notification.
+
+        :param toast_title: Title of the toast notification.
+        :param toast_text: Text of the toast notification.
+        :param toast_preset: Preset of the toast notification, e.g., ToastPreset.SUCCESS or ToastPreset.FAILURE.
+        """
+        toast = Toast(self.centralwidget)
+        toast.setDuration(4000)
+        toast.setTitle(toast_title)
+        toast.setText(toast_text)
+        toast.applyPreset(toast_preset)
+        toast.setPositionRelativeToWidget(self.centralwidget)
+        toast.setPosition(ToastPosition.BOTTOM_RIGHT)
+        toast.show()
 
     def _tree_from_chains(self, chains: list[list[ConnectedPair]]):
         """

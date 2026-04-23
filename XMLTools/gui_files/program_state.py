@@ -2,6 +2,7 @@ import threading
 import tqdm
 from PIL import Image, ImageEnhance
 from PySide6.QtCore import Signal, QObject, QTimer, Slot, QMetaObject, Qt
+from pyqttoast import ToastPreset
 
 from xml_extraction import METSBook
 from glossit_connect_glosses import ConnectedPair, Word
@@ -23,6 +24,8 @@ class _ProgramState(QObject):
 
     Properties:
         data_changed (Signal): Signal that is emitted when data has been changed in the program state.
+        show_toast (Signal[str, str, int]): Signal that is emitted when a toast should be displayed.
+                                            The arguments are title, message, and ToastPreset.
         _request_debounce (Signal): Signal that is emitted when the debounce is requested.
 
         has_unsaved_changes (bool): If True, the program state has unsaved changes.
@@ -86,6 +89,7 @@ class _ProgramState(QObject):
         _update_unconnected_gloss_lines: Updates the unconnected gloss lines for this page.
     """
     data_changed = Signal(str)
+    show_toast = Signal(str, str, int)
     _request_debounce = Signal()
 
     def __init__(self):
@@ -344,6 +348,7 @@ class _ProgramState(QObject):
         )
         self._currently_selected_object = current_object
 
+        # Only do something if we have a previously selected and currently selected object
         if previous_object is not None and current_object is not None:
             all_start = [
                 connection.start for connection in
@@ -354,9 +359,23 @@ class _ProgramState(QObject):
             # 1) the previous object is a gloss!
             # 2) the previous and current object are not the same
             # 3) the previous object is not already the start of another connection
-            if (isinstance(previous_object, GlossLine)
-                    and previous_object != current_object
-                    and previous_object not in all_start):
+            # 4) the two objects to be connected are not allowed to result in some kind of circular connection,
+            #    e.g., a -> b -> c -> a
+
+            # 1) previous object is not a gloss
+            if not isinstance(previous_object, GlossLine):
+                pass
+            # 2) previous and current object are the same
+            elif previous_object == current_object:
+                pass
+            # 3) previous object already is start of another connection
+            elif previous_object in all_start:
+                self.show_toast.emit("Can't connect",
+                                     f"{previous_object} already points to another object", ToastPreset.ERROR)
+            # 4) the two objects would form a circular connection
+            elif 0:
+                pass  # TODO
+            else:
                 new_connection = ConnectedPair(previous_object, current_object)
                 self.gloss_connection_handler.append_connection_to_connector(
                     connector_idx=self.current_page_index,
@@ -365,6 +384,7 @@ class _ProgramState(QObject):
 
                 # in this case, also update the undo_redo list!
                 self._undo_redo_list.add_element(self.gloss_connection_handler[self.current_page_index].connections)
+
 
         self._draw_connection_objects = construct_connection_graphics_from_connector(
             self.gloss_connection_handler[self.current_page_index]

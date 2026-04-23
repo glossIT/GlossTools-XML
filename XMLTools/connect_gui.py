@@ -130,6 +130,7 @@ class MainWindow(QMainWindow):
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        program_state.show_toast.connect(self.ui.show_toast)
 
         # Load window geometry
         self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
