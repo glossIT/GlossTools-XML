@@ -23,6 +23,7 @@ class _ProgramState(QObject):
 
     Properties:
         data_changed (Signal): Signal that is emitted when data has been changed in the program state.
+        _request_debounce (Signal): Signal that is emitted when the debounce is requested.
 
         has_unsaved_changes (bool): If True, the program state has unsaved changes.
         icon (QIcon | None): Stores the application icon.
@@ -85,6 +86,7 @@ class _ProgramState(QObject):
         _update_unconnected_gloss_lines: Updates the unconnected gloss lines for this page.
     """
     data_changed = Signal(str)
+    _request_debounce = Signal()
 
     def __init__(self):
         """
@@ -92,13 +94,13 @@ class _ProgramState(QObject):
         """
         super().__init__()
 
+        self._request_debounce.connect(self._start_debounce_timer)
+
         self.icon = None
 
         self._debounce_timer = QTimer(self)
         self._debounce_timer.setSingleShot(True)
-        self._debounce_timer.timeout.connect(
-            lambda: QMetaObject.invokeMethod(self, "_emit_data_changed", Qt.QueuedConnection)
-        )
+        self._debounce_timer.timeout.connect(self._emit_data_changed)
         self._pending_changes = set()
 
         self._mets_book_cache: dict | None = None
@@ -426,7 +428,7 @@ class _ProgramState(QObject):
         :param property_name: Name of the property to be changed.
         """
         self._pending_changes.add(property_name)
-        QMetaObject.invokeMethod(self, "_start_debounce_timer", Qt.QueuedConnection)
+        self._request_debounce.emit()
 
     def _update_unconnected_gloss_lines(self):
         """
