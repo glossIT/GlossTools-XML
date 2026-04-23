@@ -1,0 +1,14 @@
+**/.idea
+**/.jpg
+**/.ipynb_checkpoints/**
+**/*.mlmodel
+**/__pycache__
+**/*.pdf
+XMLTools/transformations
+XMLTools/pages
+**/*.log
+**/*.glp
+**/*.pkl
+**/GlossConnector.log
+**/Testdata/
+
