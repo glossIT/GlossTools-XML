@@ -4,7 +4,7 @@ import shutil
 from PySide6.QtGui import QIcon, Qt
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, \
     QMessageBox
-from PySide6.QtCore import Signal, QCoreApplication, QSettings, QThread, QMetaObject, Slot, Q_ARG, \
+from PySide6.QtCore import Signal, QCoreApplication, QSettings, QThread, Slot, \
     qInstallMessageHandler, QtMsgType
 import sys
 from typing import Callable

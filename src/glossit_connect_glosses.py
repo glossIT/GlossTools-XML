@@ -194,6 +194,8 @@ class GlossOnPageConnector:
 
     Methods:
         get_unconnected_gloss_line_ids: Gets all gloss lines on the page that are not featured in a connection.
+        check_if_connection_results_in_circular_relation (ConnectedPair): Checks if adding the connection results in a
+                                                                          circular chain.
         apply_connections (list[list[ConnectedPair]]): Applies the connections from the provided chain
                                                        to the provided input TEI data.
 
@@ -269,6 +271,20 @@ class GlossOnPageConnector:
 
         unconnected_gloss_lines = all_gloss_lines - connected_objects
         return list(unconnected_gloss_lines)
+
+    def check_if_connection_results_in_circular_relation(self, connection: ConnectedPair) -> bool:
+        """
+        Checks if adding a connection results in circular relationship, e.g., a chain of the form
+            a -> b -> c -> a.
+        :param connection: Connection to be checked
+        :return: True if connection results in circular relationship, else False.
+        """
+        with_added_connection = self.connections + [connection]
+        try:
+            self._chain_connections_together(with_added_connection)
+        except ValueError:
+            return True
+        return False
 
     def apply_connections(self, chains: list[list[ConnectedPair]], input_tei: BeautifulSoup = None) -> BeautifulSoup:
         """
@@ -490,6 +506,7 @@ class GlossOnPageConnector:
         Takes a list of connections and groups them into chains.
 
         :param page_connections: Connections that should be grouped into chains.
+        :raises ValueError: if a circular relation was found
         :return: List of chained connections.
         """
 
@@ -502,17 +519,14 @@ class GlossOnPageConnector:
             if connection.start.id not in [other_connection.end.id for other_connection in page_connections]:
                 connection_cycles.append([connection])
                 del temp_connections[idx]
-            else:
-                # if for some reason we have a circular reference of the form a -> b and b -> a
-                # we add the connection nevertheless
-                for other_connection in page_connections:
-                    if connection.start.id == other_connection.end.id and other_connection.start.id == connection.end.id:
-                        connection_cycles.append([connection])
-                        del temp_connections[idx]
-                        break
 
         while len(temp_connections) > 0:  # fetch and connect elements until all connections are in a chain
             def traverse():
+                """
+                Traverses all connections and adds them to a chain if possible.
+                :return: True if every connection could be added to a cycle, False if there is a circular relation
+                         going on.
+                """
                 for idx in range(len(temp_connections)):
                     connection = temp_connections[idx]
                     for cycle in connection_cycles:
@@ -520,9 +534,12 @@ class GlossOnPageConnector:
                             -1].end.id == connection.start.id:  # if we can add the current connection to a chain
                             cycle.append(connection)
                             del temp_connections[idx]
-                            return
+                            return False
+                return True
 
-            traverse()
+            has_circular_relation = traverse()
+            if has_circular_relation:
+                raise ValueError("Circular relation was found. Abort.")
 
         # now sort the chains according to the y coordinate of the first element's first baseline point
         connection_cycles = sorted(connection_cycles, key=lambda cycle: cycle[0].start.baseline[0][1])

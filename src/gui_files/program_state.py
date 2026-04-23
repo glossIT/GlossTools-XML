@@ -1,7 +1,7 @@
 import threading
 import tqdm
 from PIL import Image, ImageEnhance
-from PySide6.QtCore import Signal, QObject, QTimer, Slot, QMetaObject, Qt
+from PySide6.QtCore import Signal, QObject, QTimer, Slot
 from pyqttoast import ToastPreset
 
 from xml_extraction import METSBook
@@ -24,8 +24,8 @@ class _ProgramState(QObject):
 
     Properties:
         data_changed (Signal): Signal that is emitted when data has been changed in the program state.
-        show_toast (Signal[str, str, int]): Signal that is emitted when a toast should be displayed.
-                                            The arguments are title, message, and ToastPreset.
+        show_toast (Signal[str, str, ToastPreset]): Signal that is emitted when a toast should be displayed.
+                                                    The arguments are title, message, and ToastPreset.
         _request_debounce (Signal): Signal that is emitted when the debounce is requested.
 
         has_unsaved_changes (bool): If True, the program state has unsaved changes.
@@ -89,7 +89,7 @@ class _ProgramState(QObject):
         _update_unconnected_gloss_lines: Updates the unconnected gloss lines for this page.
     """
     data_changed = Signal(str)
-    show_toast = Signal(str, str, int)
+    show_toast = Signal(str, str, ToastPreset)
     _request_debounce = Signal()
 
     def __init__(self):
@@ -131,17 +131,18 @@ class _ProgramState(QObject):
 
         def connector_callback():
             self._update_unconnected_gloss_lines()
+
         self._gloss_connection_handler: GlossConnectionHandler = GlossConnectionHandler(
             callback=connector_callback
         )
 
     def __repr__(self):
-            return (f"ProgramState(\n"
-                    f"   Path to METS: {self.path_to_mets}\n"
-                    f"   Path to TEI: {self.path_to_tei}\n"
-                    f"   Path to Model: {self.path_to_model}\n"
-                    f")"
-                    )
+        return (f"ProgramState(\n"
+                f"   Path to METS: {self.path_to_mets}\n"
+                f"   Path to TEI: {self.path_to_tei}\n"
+                f"   Path to Model: {self.path_to_model}\n"
+                f")"
+                )
 
     def reset(self):
         """
@@ -153,7 +154,7 @@ class _ProgramState(QObject):
         self.path_to_model = None
 
         # We keep the save file path
-        #self.save_file_path = None
+        # self.save_file_path = None
 
         del self._page_counter
         self._page_counter = None
@@ -196,10 +197,10 @@ class _ProgramState(QObject):
             mets_book_dict = self._mets_book_cache
 
         return {
-                    "mets_book": mets_book_dict,
-                    "page_counter": self._page_counter.to_dict(),
-                    "page_connections": self._gloss_connection_handler.to_dict(),
-                }
+            "mets_book": mets_book_dict,
+            "page_counter": self._page_counter.to_dict(),
+            "page_connections": self._gloss_connection_handler.to_dict(),
+        }
 
     def from_dict(self, dictionary: dict, tqdm_progress: tqdm.tqdm = None):
         """
@@ -362,6 +363,8 @@ class _ProgramState(QObject):
             # 4) the two objects to be connected are not allowed to result in some kind of circular connection,
             #    e.g., a -> b -> c -> a
 
+            new_connection = ConnectedPair(previous_object, current_object)
+
             # 1) previous object is not a gloss
             if not isinstance(previous_object, GlossLine):
                 pass
@@ -370,13 +373,15 @@ class _ProgramState(QObject):
                 pass
             # 3) previous object already is start of another connection
             elif previous_object in all_start:
-                self.show_toast.emit("Can't connect",
+                self.show_toast.emit("Error: Can't connect",
                                      f"{previous_object} already points to another object", ToastPreset.ERROR)
             # 4) the two objects would form a circular connection
-            elif 0:
-                pass  # TODO
+            elif self.gloss_connection_handler[
+                self.current_page_index].check_if_connection_results_in_circular_relation(
+                    ConnectedPair(previous_object, current_object)):
+                self.show_toast.emit("Error: Can't connect",
+                                     f"This connection leads to a circular relation", ToastPreset.ERROR)
             else:
-                new_connection = ConnectedPair(previous_object, current_object)
                 self.gloss_connection_handler.append_connection_to_connector(
                     connector_idx=self.current_page_index,
                     connection=new_connection
@@ -384,7 +389,6 @@ class _ProgramState(QObject):
 
                 # in this case, also update the undo_redo list!
                 self._undo_redo_list.add_element(self.gloss_connection_handler[self.current_page_index].connections)
-
 
         self._draw_connection_objects = construct_connection_graphics_from_connector(
             self.gloss_connection_handler[self.current_page_index]

@@ -601,7 +601,7 @@ class Ui_MainWindow(object):
         self.buttonRedo.setText(QCoreApplication.translate("MainWindow", u"Redo", None))
     # retranslateUi
 
-    @Slot(str, str, int)
+    @Slot(str, str, ToastPreset)
     def show_toast(self, toast_title: str, toast_text: str, toast_preset: ToastPreset):
         """
         Shows a toast notification.
