@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup  # XML manipulation
 import copy
+import networkx
 import numpy as np
 import shapely
 
@@ -200,6 +201,7 @@ class GlossOnPageConnector:
                                                        to the provided input TEI data.
 
     Class Methods:
+        are_connections_acyclic (list[ConnectedPair]): Checks if the connections are acyclic.
         remove_connections (BeautifulSoup): Given TEI data, remove all connection data and IDs from it and return it.
         extract_connections (METSPage): Given a METSPage, extract all connection data and return it.
         auto_connect (METSPage): Given a METSPage, attempts an automatic connection of all glosses/references and
@@ -280,11 +282,8 @@ class GlossOnPageConnector:
         :return: True if connection results in circular relationship, else False.
         """
         with_added_connection = self.connections + [connection]
-        try:
-            self._chain_connections_together(with_added_connection)
-        except ValueError:
-            return True
-        return False
+        return not self.are_connections_acyclic(with_added_connection)
+
 
     def apply_connections(self, chains: list[list[ConnectedPair]], input_tei: BeautifulSoup = None) -> BeautifulSoup:
         """
@@ -387,6 +386,18 @@ class GlossOnPageConnector:
                 gloss_tag["target"] = f"#{end.id}"
 
         return tei
+
+    @classmethod
+    def are_connections_acyclic(cls, connections: list[ConnectedPair]):
+        """
+        Checks if the provided connections are acyclic.
+        :param connections: Connections to check.
+        :return: True if the connections are acyclic, else False.
+        """
+        graph = networkx.DiGraph()
+        for connection in connections:
+            graph.add_edge(connection.start.id, connection.end.id)
+        return networkx.is_directed_acyclic_graph(graph)
 
     @classmethod
     def remove_connections(cls, tei: BeautifulSoup) -> BeautifulSoup:
@@ -509,6 +520,7 @@ class GlossOnPageConnector:
         :raises ValueError: if a circular relation was found
         :return: List of chained connections.
         """
+        assert cls.are_connections_acyclic(page_connections)
 
         temp_connections = copy.deepcopy(page_connections)
         connection_cycles = []
@@ -524,8 +536,6 @@ class GlossOnPageConnector:
             def traverse():
                 """
                 Traverses all connections and adds them to a chain if possible.
-                :return: True if every connection could be added to a cycle, False if there is a circular relation
-                         going on.
                 """
                 for idx in range(len(temp_connections)):
                     connection = temp_connections[idx]
@@ -534,12 +544,9 @@ class GlossOnPageConnector:
                             -1].end.id == connection.start.id:  # if we can add the current connection to a chain
                             cycle.append(connection)
                             del temp_connections[idx]
-                            return False
-                return True
+                            return
 
-            has_circular_relation = traverse()
-            if has_circular_relation:
-                raise ValueError("Circular relation was found. Abort.")
+            traverse()
 
         # now sort the chains according to the y coordinate of the first element's first baseline point
         connection_cycles = sorted(connection_cycles, key=lambda cycle: cycle[0].start.baseline[0][1])
