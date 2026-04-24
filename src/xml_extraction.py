@@ -1,19 +1,18 @@
 from bs4 import BeautifulSoup  # XML manipulation
 import difflib  # matching strings
+import kraken
+from kraken import rpred
+from kraken.containers import BaselineLine
+from kraken.lib import models, xml
 import io
 import lxml.etree as ET  # for applying XSLT transformations
 import numpy as np  # matrix manipulation
 import os  # access to file system etc.
 from PIL import Image  # load images
-from kraken.containers import BaselineLine
+import re
 from saxonche import PySaxonProcessor  # xslt transformations
 from shapely.geometry import Polygon  # for polygon operations such as area
 import tqdm  # print for loop as progress bar
-
-# Kraken OCR
-import kraken
-from kraken.lib import models, xml
-from kraken import rpred
 
 from coordinate_manipulation import polygon_to_rectangle, divide_rectangle_into_equal_parts
 from glossit_dataclasses import Region, MainTextLine, LineType, GlossLine, PageObject, MAIN_TEXT_LINE_TYPES
@@ -803,8 +802,10 @@ class METSPage:
 
         # i) Ground truth data extraction and preprocessing.
         ground_truth_text = line_properties["text"]
-        # remove leading and trailing spaces, and compress consecutive spaces to one space before splitting
-        ground_truth_words = ground_truth_text.strip().replace("  ", " ").split(" ")
+        # compress consecutive spaces to one space
+        ground_truth_text = re.sub(r"\s+", " ", ground_truth_text)
+        # remove leading and trailing spaces before splitting
+        ground_truth_words = ground_truth_text.strip().split(" ")
         ground_truth_string = "".join(
             ground_truth_words).lower()  # remove spaces and all lowercase for matching with OCR output
 
