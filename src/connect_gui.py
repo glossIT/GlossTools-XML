@@ -4,7 +4,7 @@ import shutil
 from PySide6.QtGui import QIcon, Qt
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, \
     QMessageBox
-from PySide6.QtCore import Signal, QCoreApplication, QSettings, QThread, QMetaObject, Slot, Q_ARG, \
+from PySide6.QtCore import Signal, QCoreApplication, QSettings, QThread, Slot, \
     qInstallMessageHandler, QtMsgType
 import sys
 from typing import Callable
@@ -86,6 +86,8 @@ class MainWindow(QMainWindow):
     Class MainWindow represents the gloss connector main window.
 
     Attributes:
+        show_error_dialog (Signal[str, str]): This signal is emitted when an error message dialog should be displayed.
+                                    First string is the title, second string is the error message.
         ui (Ui_MainWindow): The user interface associated with the main window.
         settings (QSettings): Stores settings such as window geometry to restore after restarting the software.
         threads (list[ThreadWrapper]): A list of threads that are currently being executed.
@@ -112,9 +114,12 @@ class MainWindow(QMainWindow):
         _close_thread (uuid.UUID): Closes the thread with the passed ID and removes it from the list threads.
         _enable_buttons: Enables all buttons that can only be accessed after a project is loaded or created.
     """
+    show_error_dialog = Signal(str, str)
 
     def __init__(self):
         super().__init__()
+        self.show_error_dialog.connect(self._show_error_dialog)
+
         program_state = ProgramStateSingleton().program_state
         program_state._main_window = self
 
@@ -125,6 +130,7 @@ class MainWindow(QMainWindow):
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        program_state.show_toast.connect(self.ui.show_toast)
 
         # Load window geometry
         self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
@@ -237,9 +243,10 @@ class MainWindow(QMainWindow):
         new_thread.start()
         return new_thread
 
+
     @Slot(str, str)
     def _show_error_dialog(self, title: str, message: str):
-        QMessageBox.critical(None, title, message)
+        QMessageBox.critical(self, title, message)
 
     def _new_project(self):
         """
@@ -325,39 +332,21 @@ class MainWindow(QMainWindow):
                         loaded_compressed = file.read()
                 except (EOFError, umsgpack.UnpackException) as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to read file from file system.")
-                    )
+                    self.show_error_dialog.emit("Error", "Failed to read file from file system.")
                     return
 
                 try:
                     loaded_uncompressed = zlib.decompress(loaded_compressed)
                 except zlib.error as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to decompress data.")
-                    )
+                    self.show_error_dialog.emit("Error", "Failed to decompress data.")
                     return
 
                 try:
                     loaded_unserialized = umsgpack.loads(loaded_uncompressed)
                 except (EOFError, umsgpack.UnpackException) as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to unserialize data.")
-                    )
+                    self.show_error_dialog.emit("Error", "Failed to unserialize data.")
                     return
 
                 loading_window_content.action_text = "Loading file contents into program state"
@@ -366,13 +355,10 @@ class MainWindow(QMainWindow):
                     program_state.from_dict(loaded_unserialized, tqdm_progress=loading_window_content.callback_tqdm)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to read file contents. Is this a valid GlossIT project file?")
-                    )
+                    self.show_error_dialog.emit("Error",
+                                                "Failed to read file contents. Is this a valid GlossIT project file?")
+                    return
+
                 loading_window_content.callback_tqdm.close()
 
                 try:
@@ -385,14 +371,9 @@ class MainWindow(QMainWindow):
                     )
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Some error has occurred.")
-                    )
+                    self.show_error_dialog.emit("Error", "Some error has occurred.")
                     loading_window_content.callback_tqdm.close()
+                    return
 
                 program_state.has_unsaved_changes = False
 
@@ -459,38 +440,22 @@ class MainWindow(QMainWindow):
                     serialized_data = umsgpack.dumps(save_file)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to serialize data.")
-                    )
+                    self.show_error_dialog.emit("Error", "Failed to serialize data.")
+                    return
 
                 try:
                     compressed_data = zlib.compress(serialized_data)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to compress data.")
-                    )
+                    self.show_error_dialog.emit("Error", "Failed to compress data.")
+                    return
 
                 try:
                     with open(save_path, "wb") as file:
                         file.write(compressed_data)
                 except umsgpack.PackException as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to write file to file system.")
-                    )
+                    self.show_error_dialog.emit("Error", "Failed to write file to file system.")
                     return
                 # Update the status of the saved changes
                 program_state.has_unsaved_changes = False
@@ -525,13 +490,8 @@ class MainWindow(QMainWindow):
                 )
             except Exception as e:
                 LoggerSingleton().logger.log_exception(e)
-                QMetaObject.invokeMethod(
-                    self,
-                    "_show_error_dialog",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "Error"),
-                    Q_ARG(str, "Failed to read files or perform OCR recognition.")
-                )
+                self.show_error_dialog.emit("Error",
+                                            f"Failed to read files or perform OCR recognition.")
                 return
 
             # 2) Replace old TEI data by new TEI data
@@ -546,13 +506,8 @@ class MainWindow(QMainWindow):
                     program_state.gloss_connection_handler[page_idx].clean_tei = clean_tei
             except Exception as e:
                 LoggerSingleton().logger.log_exception(e)
-                QMetaObject.invokeMethod(
-                    self,
-                    "_show_error_dialog",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "Error"),
-                    Q_ARG(str, "Failed to replace old TEI data by new TEI data.")
-                )
+                self.show_error_dialog.emit("Error",
+                                            f"Failed to replace old TEI data with new TEI data.")
                 return
 
             # 3) Remove current page connections
@@ -600,13 +555,8 @@ class MainWindow(QMainWindow):
                     save_tei = str(save_tei)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to apply connections to TEI data.")
-                    )
+                    self.show_error_dialog.emit("Error",
+                                                f"Failed to apply connections to TEI data.")
                     return
 
                 loading_window_content.action_text = "Saving to file system"
@@ -615,13 +565,8 @@ class MainWindow(QMainWindow):
                         file.write(save_tei)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
-                    QMetaObject.invokeMethod(
-                        self,
-                        "_show_error_dialog",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "Error"),
-                        Q_ARG(str, "Failed to save file to file system.")
-                    )
+                    self.show_error_dialog.emit("Error",
+                                                f"Failed to save file to file system.")
                     return
 
             self.thread_function(on_export, loading_window_content=loading_window_content)
@@ -670,13 +615,9 @@ class MainWindow(QMainWindow):
                             shutil.rmtree(file_path)
                     except OSError as e:
                         LoggerSingleton().logger.log_exception(e)
-                        QMetaObject.invokeMethod(
-                            self,
-                            "_show_error_dialog",
-                            Qt.QueuedConnection,
-                            Q_ARG(str, "Error"),
-                            Q_ARG(str, f"Failed to delete contents of directory {create_export_path}.")
-                        )
+                        self.show_error_dialog.emit("Error",
+                                                    f"Failed to delete contents of directory {create_export_path}.")
+                        return
 
         # Now, save the METS file, the images and the PageXML
         def on_export_mets():

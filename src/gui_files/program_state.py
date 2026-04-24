@@ -1,7 +1,8 @@
 import threading
 import tqdm
 from PIL import Image, ImageEnhance
-from PySide6.QtCore import Signal, QObject, QTimer, Slot, QMetaObject, Qt
+from PySide6.QtCore import Signal, QObject, QTimer, Slot
+from pyqttoast import ToastPreset
 
 from xml_extraction import METSBook
 from glossit_connect_glosses import ConnectedPair, Word
@@ -23,6 +24,9 @@ class _ProgramState(QObject):
 
     Properties:
         data_changed (Signal): Signal that is emitted when data has been changed in the program state.
+        show_toast (Signal[str, str, ToastPreset]): Signal that is emitted when a toast should be displayed.
+                                                    The arguments are title, message, and ToastPreset.
+        _request_debounce (Signal): Signal that is emitted when the debounce is requested.
 
         has_unsaved_changes (bool): If True, the program state has unsaved changes.
         icon (QIcon | None): Stores the application icon.
@@ -85,6 +89,8 @@ class _ProgramState(QObject):
         _update_unconnected_gloss_lines: Updates the unconnected gloss lines for this page.
     """
     data_changed = Signal(str)
+    show_toast = Signal(str, str, ToastPreset)
+    _request_debounce = Signal()
 
     def __init__(self):
         """
@@ -92,13 +98,13 @@ class _ProgramState(QObject):
         """
         super().__init__()
 
+        self._request_debounce.connect(self._start_debounce_timer)
+
         self.icon = None
 
         self._debounce_timer = QTimer(self)
         self._debounce_timer.setSingleShot(True)
-        self._debounce_timer.timeout.connect(
-            lambda: QMetaObject.invokeMethod(self, "_emit_data_changed", Qt.QueuedConnection)
-        )
+        self._debounce_timer.timeout.connect(self._emit_data_changed)
         self._pending_changes = set()
 
         self._mets_book_cache: dict | None = None
@@ -125,17 +131,18 @@ class _ProgramState(QObject):
 
         def connector_callback():
             self._update_unconnected_gloss_lines()
+
         self._gloss_connection_handler: GlossConnectionHandler = GlossConnectionHandler(
             callback=connector_callback
         )
 
     def __repr__(self):
-            return (f"ProgramState(\n"
-                    f"   Path to METS: {self.path_to_mets}\n"
-                    f"   Path to TEI: {self.path_to_tei}\n"
-                    f"   Path to Model: {self.path_to_model}\n"
-                    f")"
-                    )
+        return (f"ProgramState(\n"
+                f"   Path to METS: {self.path_to_mets}\n"
+                f"   Path to TEI: {self.path_to_tei}\n"
+                f"   Path to Model: {self.path_to_model}\n"
+                f")"
+                )
 
     def reset(self):
         """
@@ -147,7 +154,7 @@ class _ProgramState(QObject):
         self.path_to_model = None
 
         # We keep the save file path
-        #self.save_file_path = None
+        # self.save_file_path = None
 
         del self._page_counter
         self._page_counter = None
@@ -190,10 +197,10 @@ class _ProgramState(QObject):
             mets_book_dict = self._mets_book_cache
 
         return {
-                    "mets_book": mets_book_dict,
-                    "page_counter": self._page_counter.to_dict(),
-                    "page_connections": self._gloss_connection_handler.to_dict(),
-                }
+            "mets_book": mets_book_dict,
+            "page_counter": self._page_counter.to_dict(),
+            "page_connections": self._gloss_connection_handler.to_dict(),
+        }
 
     def from_dict(self, dictionary: dict, tqdm_progress: tqdm.tqdm = None):
         """
@@ -342,6 +349,7 @@ class _ProgramState(QObject):
         )
         self._currently_selected_object = current_object
 
+        # Only do something if we have a previously selected and currently selected object
         if previous_object is not None and current_object is not None:
             all_start = [
                 connection.start for connection in
@@ -352,10 +360,28 @@ class _ProgramState(QObject):
             # 1) the previous object is a gloss!
             # 2) the previous and current object are not the same
             # 3) the previous object is not already the start of another connection
-            if (isinstance(previous_object, GlossLine)
-                    and previous_object != current_object
-                    and previous_object not in all_start):
-                new_connection = ConnectedPair(previous_object, current_object)
+            # 4) the two objects to be connected are not allowed to result in some kind of circular connection,
+            #    e.g., a -> b -> c -> a
+
+            new_connection = ConnectedPair(previous_object, current_object)
+
+            # 1) previous object is not a gloss
+            if not isinstance(previous_object, GlossLine):
+                pass
+            # 2) previous and current object are the same
+            elif previous_object == current_object:
+                pass
+            # 3) previous object already is start of another connection
+            elif previous_object in all_start:
+                self.show_toast.emit("Error: Can't connect",
+                                     f"{previous_object} already points to another object", ToastPreset.ERROR)
+            # 4) the two objects would form a circular connection
+            elif self.gloss_connection_handler[
+                self.current_page_index].check_if_connection_results_in_circular_relation(
+                    ConnectedPair(previous_object, current_object)):
+                self.show_toast.emit("Error: Can't connect",
+                                     f"This connection leads to a circular relation", ToastPreset.ERROR)
+            else:
                 self.gloss_connection_handler.append_connection_to_connector(
                     connector_idx=self.current_page_index,
                     connection=new_connection
@@ -426,7 +452,7 @@ class _ProgramState(QObject):
         :param property_name: Name of the property to be changed.
         """
         self._pending_changes.add(property_name)
-        QMetaObject.invokeMethod(self, "_start_debounce_timer", Qt.QueuedConnection)
+        self._request_debounce.emit()
 
     def _update_unconnected_gloss_lines(self):
         """

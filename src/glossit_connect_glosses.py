@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup  # XML manipulation
 import copy
+import networkx
 import numpy as np
 import shapely
 
@@ -194,10 +195,13 @@ class GlossOnPageConnector:
 
     Methods:
         get_unconnected_gloss_line_ids: Gets all gloss lines on the page that are not featured in a connection.
+        check_if_connection_results_in_circular_relation (ConnectedPair): Checks if adding the connection results in a
+                                                                          circular chain.
         apply_connections (list[list[ConnectedPair]]): Applies the connections from the provided chain
                                                        to the provided input TEI data.
 
     Class Methods:
+        are_connections_acyclic (list[ConnectedPair]): Checks if the connections are acyclic.
         remove_connections (BeautifulSoup): Given TEI data, remove all connection data and IDs from it and return it.
         extract_connections (METSPage): Given a METSPage, extract all connection data and return it.
         auto_connect (METSPage): Given a METSPage, attempts an automatic connection of all glosses/references and
@@ -269,6 +273,17 @@ class GlossOnPageConnector:
 
         unconnected_gloss_lines = all_gloss_lines - connected_objects
         return list(unconnected_gloss_lines)
+
+    def check_if_connection_results_in_circular_relation(self, connection: ConnectedPair) -> bool:
+        """
+        Checks if adding a connection results in circular relationship, e.g., a chain of the form
+            a -> b -> c -> a.
+        :param connection: Connection to be checked
+        :return: True if connection results in circular relationship, else False.
+        """
+        with_added_connection = self.connections + [connection]
+        return not self.are_connections_acyclic(with_added_connection)
+
 
     def apply_connections(self, chains: list[list[ConnectedPair]], input_tei: BeautifulSoup = None) -> BeautifulSoup:
         """
@@ -371,6 +386,18 @@ class GlossOnPageConnector:
                 gloss_tag["target"] = f"#{end.id}"
 
         return tei
+
+    @classmethod
+    def are_connections_acyclic(cls, connections: list[ConnectedPair]):
+        """
+        Checks if the provided connections are acyclic.
+        :param connections: Connections to check.
+        :return: True if the connections are acyclic, else False.
+        """
+        graph = networkx.DiGraph()
+        for connection in connections:
+            graph.add_edge(connection.start.id, connection.end.id)
+        return networkx.is_directed_acyclic_graph(graph)
 
     @classmethod
     def remove_connections(cls, tei: BeautifulSoup) -> BeautifulSoup:
@@ -490,8 +517,10 @@ class GlossOnPageConnector:
         Takes a list of connections and groups them into chains.
 
         :param page_connections: Connections that should be grouped into chains.
+        :raises ValueError: if a circular relation was found
         :return: List of chained connections.
         """
+        assert cls.are_connections_acyclic(page_connections)
 
         temp_connections = copy.deepcopy(page_connections)
         connection_cycles = []
@@ -502,17 +531,12 @@ class GlossOnPageConnector:
             if connection.start.id not in [other_connection.end.id for other_connection in page_connections]:
                 connection_cycles.append([connection])
                 del temp_connections[idx]
-            else:
-                # if for some reason we have a circular reference of the form a -> b and b -> a
-                # we add the connection nevertheless
-                for other_connection in page_connections:
-                    if connection.start.id == other_connection.end.id and other_connection.start.id == connection.end.id:
-                        connection_cycles.append([connection])
-                        del temp_connections[idx]
-                        break
 
         while len(temp_connections) > 0:  # fetch and connect elements until all connections are in a chain
             def traverse():
+                """
+                Traverses all connections and adds them to a chain if possible.
+                """
                 for idx in range(len(temp_connections)):
                     connection = temp_connections[idx]
                     for cycle in connection_cycles:
