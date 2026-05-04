@@ -189,7 +189,7 @@ class _ProgramState(QObject):
         :param tqdm_progress: A tqdm progress bar for tracking METSBook construction process.
         :return: Dictionary of the most important _ProgramState features.
         """
-
+        LoggerSingleton().logger.log_info(f"_ProgramState.to_dict(...)")
         if self._mets_book_cache is None:
             mets_book_dict = self.mets_book.to_dict(tqdm_progress=tqdm_progress)
             self._mets_book_cache = mets_book_dict
@@ -207,6 +207,7 @@ class _ProgramState(QObject):
         Resets the _ProgramState class with the values loaded from a save file dictionary.
         :param tqdm_progress: A tqdm progress bar for tracking METSBook construction process.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.from_dict(...)")
         self.reset()
 
         self._mets_book = METSBook.from_dict(dictionary["mets_book"])
@@ -231,6 +232,7 @@ class _ProgramState(QObject):
         """
         Sets the page counter object to the next page. Call from separate thread!
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.go_to_next_page()")
         self._page_counter.next_index()
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
@@ -241,6 +243,7 @@ class _ProgramState(QObject):
         """
         Sets the page counter object to the previous page. Call from separate thread!
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.go_to_previous_page()")
         self._page_counter.previous_index()
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
@@ -252,6 +255,7 @@ class _ProgramState(QObject):
         Sets the page counter object to the page of index page_idx. Call from separate thread!
         :param page_idx: Page index to which the page counter should be set.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.go_to_page(page_idx={page_idx})")
         self._page_counter.go_to_index(page_idx)
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
@@ -263,6 +267,7 @@ class _ProgramState(QObject):
         Updates whether the text inside the word/gloss bounding boxes should be rendered. Call from separate thread!
         :param value: True if the text should be rendered.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.update_display_text(value={value})")
         if self._display_text != value:
             self._display_text = value
             self._schedule_emit("display_text")
@@ -272,6 +277,7 @@ class _ProgramState(QObject):
         """
         Updates the graphics for the currently selected page for display. Call from separate thread!
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.construct_current_page_graphics()")
         enhancer = ImageEnhance.Brightness(
             self.mets_book[self.current_page_index].pageimg
         )
@@ -293,6 +299,7 @@ class _ProgramState(QObject):
         :param page_idx: Page index to check.
         :return: True if the page index is valid.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.page_index_is_valid(page_idx={page_idx})")
         return self._page_counter.index_is_valid(page_idx)
 
     def has_undo_actions(self):
@@ -300,6 +307,7 @@ class _ProgramState(QObject):
         Return True if there are actions that can be undone.
         :return: True if there are actions that can be undone.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.has_undo_actions()")
         return self._undo_redo_list.has_elements_before()
 
     def has_redo_actions(self):
@@ -307,12 +315,14 @@ class _ProgramState(QObject):
         Return True if there are actions that can be redone.
         :return: True if there are actions that can be redone.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.has_redo_actions()")
         return self._undo_redo_list.has_elements_after()
 
     def undo(self):
         """
         If possible, undo the last action.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.undo()")
         if self._undo_redo_list.has_elements_before():
             self._gloss_connection_handler[
                 self.current_page_index
@@ -326,6 +336,7 @@ class _ProgramState(QObject):
         """
         If possible, redo the last action.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.redo()")
         if self._undo_redo_list.has_elements_after():
             self._gloss_connection_handler[self.current_page_index].connections = self._undo_redo_list.next_element()
             self._draw_connection_objects = construct_connection_graphics_from_connector(
@@ -341,6 +352,7 @@ class _ProgramState(QObject):
         :param x: X coordinate.
         :param y: Y coordinate.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.select_or_connect_on_coordinate(x={x}, y={y})")
         previous_object = self._currently_selected_object
         current_object = self.spatial_database.get_object_by_coordinate(
             page_index=self.current_page_index,
@@ -401,6 +413,7 @@ class _ProgramState(QObject):
         Deletes the connection that has the passed index. Call from separate thread!
         :param index_to_delete: Index of the connection to delete.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.remove_connection(index_to_delete={index_to_delete})")
         chains = self.gloss_connection_handler[
             self.current_page_index
         ].connection_chains
@@ -425,6 +438,7 @@ class _ProgramState(QObject):
         """
         Cleans the METSBook cache. Must be invoked whenever the METSBook is changed!
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState.clear_metsbook_cache()")
         self._mets_book_cache = None
 
     @Slot()
@@ -432,6 +446,7 @@ class _ProgramState(QObject):
         """
         Starts the debounce timer (on timeout, the signal data_changed may be emitted).
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState._start_debounce_timer()")
         self._debounce_timer.start(100)  # 100 ms debounce interval
 
     @Slot()
@@ -439,6 +454,7 @@ class _ProgramState(QObject):
         """
         If pending changes are present, the data_changed signal is emitted with a summary of changes.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState._emit_data_changed()")
         LoggerSingleton().logger.log_info(f"Emitting _ProgramState.data_changed signal {self._pending_changes}")
         if self._pending_changes:
             # Emit the signal with a summary of changes
@@ -451,6 +467,7 @@ class _ProgramState(QObject):
 
         :param property_name: Name of the property to be changed.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState._schedule_emit(property_name={property_name})")
         self._pending_changes.add(property_name)
         self._request_debounce.emit()
 
@@ -458,6 +475,7 @@ class _ProgramState(QObject):
         """
         Updates the unconnected gloss lines for this page.
         """
+        LoggerSingleton().logger.log_info(f"_ProgramState._update_unconnected_gloss_lines()")
         if self.current_page_index < len(self._gloss_connection_handler):
             self.unconnected_gloss_lines = CyclicList(
                 self._gloss_connection_handler[self.current_page_index].get_unconnected_gloss_line_ids()

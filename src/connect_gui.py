@@ -35,6 +35,7 @@ def show_warning_yesno_dialog(informative_text=""):
     This opens a dialog informing the user of an error and asks them if they want to proceed the action.
     :param informative_text: The error message that should be displayed.
     """
+    LoggerSingleton().logger.log_info(f"show_warning_yesno_dialog(informative_text={informative_text})")
     msg_box = QMessageBox()
     msg_box.setIcon(QMessageBox.Icon.Warning)
     msg_box.setText("WARNING")
@@ -153,7 +154,7 @@ class MainWindow(QMainWindow):
         :param event: Passed event.
         """
         key = event.key()
-        LoggerSingleton().logger.log_info(f"keyPressEvent ({key})")
+        LoggerSingleton().logger.log_info(f"MainWindow.keyPressEvent ({key})")
         program_state = ProgramStateSingleton().program_state
 
         if key == Qt.Key.Key_Escape:
@@ -198,7 +199,7 @@ class MainWindow(QMainWindow):
         Overrides QMainWindow.closeEvent to enable for saving window geometry.
         :param event: Passed close event.
         """
-        LoggerSingleton().logger.log_info("closeEvent")
+        LoggerSingleton().logger.log_info("MainWindow.closeEvent")
 
         if ProgramStateSingleton().program_state.has_unsaved_changes:
             # ask the user how they want to proceed when unsaved changes are present
@@ -246,12 +247,14 @@ class MainWindow(QMainWindow):
 
     @Slot(str, str)
     def _show_error_dialog(self, title: str, message: str):
+        LoggerSingleton().logger.log_info(f"MainWindow._show_error_dialog(title={title}, message={message})")
         QMessageBox.critical(self, title, message)
 
     def _new_project(self):
         """
         Opens an OpenProjectFileSelectDialog and initializes the program state singleton accordingly.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._new_project()")
         program_state = ProgramStateSingleton().program_state
 
         program_state.save_file_path = None  # Reset save file name to prevent accidentally overriding other data!
@@ -311,6 +314,7 @@ class MainWindow(QMainWindow):
         """
         Asks the user to select a *.glp file and loads it into the program state.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._open_project()")
         program_state = ProgramStateSingleton().program_state
 
         # get path of where the file should be saved
@@ -388,6 +392,7 @@ class MainWindow(QMainWindow):
         _save_as_project is called.
         :param exit_after: Exit after saving the project.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._save_project(exit_after={exit_after})")
         program_state = ProgramStateSingleton().program_state
         default_filename = program_state.save_file_path
         if default_filename is None:
@@ -400,6 +405,7 @@ class MainWindow(QMainWindow):
         Saves the current project to a file.
         :param exit_after: Exit after saving the project.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._save_as_project(exit_after={exit_after})")
         program_state = ProgramStateSingleton().program_state
         default_filename = program_state.save_file_path
         if default_filename is None:
@@ -419,6 +425,8 @@ class MainWindow(QMainWindow):
         Saves the current project to the location provided.
         :param exit_after: Exit after saving the project.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._save_project_to_path(save_path={save_path}, "
+                                          f"exit_after={exit_after})")
         program_state = ProgramStateSingleton().program_state
         if save_path is not None and save_path != "":
             if save_path.split(".")[-1] != "glp":
@@ -466,6 +474,7 @@ class MainWindow(QMainWindow):
         """
         Asks the user for a path to a PageXML and adapted TEI file to replace the currently selected page.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._replace_pagexml()")
         program_state = ProgramStateSingleton().program_state
         loading_window_content = LoadingDialogContent()
 
@@ -525,6 +534,7 @@ class MainWindow(QMainWindow):
         """
         Asks the user to select a file to which the TEI including connection data is exported.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._export_tei()")
         program_state = ProgramStateSingleton().program_state
         if program_state.save_file_path is not None:
             default_filename = "".join(program_state.save_file_path.split(".")[:-1])  # remove extension
@@ -576,6 +586,7 @@ class MainWindow(QMainWindow):
         Asks the user to select a folder to which the METS file, the PageXML data and manuscript page
         images are exported.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._export_mets()")
         program_state = ProgramStateSingleton().program_state
         if program_state.save_file_path is not None:
             base_folder = os.path.dirname(program_state.save_file_path)  # remove extension
@@ -637,7 +648,7 @@ class MainWindow(QMainWindow):
         :param thread_id: ID of the thread to be closed.
         :return: Function handle.
         """
-
+        LoggerSingleton().logger.log_info(f"MainWindow._close_thread(thread_id={thread_id})")
         def close_thread():
             if thread_id in self.threads:
                 self.threads[thread_id]["loading_dialog"].close_dialog()
@@ -650,6 +661,7 @@ class MainWindow(QMainWindow):
         """
         Enables all buttons that can only be accessed after a project is loaded or created.
         """
+        LoggerSingleton().logger.log_info(f"MainWindow._enable_buttons()")
         self.ui.buttonSaveProject.setEnabled(True)
         self.ui.buttonSaveAsProject.setEnabled(True)
         self.ui.buttonReplacePageXml.setEnabled(True)
