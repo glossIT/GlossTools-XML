@@ -1,6 +1,6 @@
 beautifulsoup4==4.14.2
 colorama==0.4.6
-kraken==6.0.0
+kraken==7.0.0
 lxml==6.0.1
 matplotlib==3.10.6
 networkx==3.5
@@ -13,7 +13,7 @@ pyqt-toast-notification==1.3.3
 pytest==8.4.2
 rtree==1.4.1
 saxonche==12.9.0
-Shapely==2.0.6
+Shapely==2.1.2
 tqdm==4.67.1
 u-msgpack-python==2.8.0
 xmlschema==4.2.0

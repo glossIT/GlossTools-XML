@@ -275,7 +275,7 @@ class Ui_MainWindow(object):
         program_state = ProgramStateSingleton().program_state
         def update_image():
             LoggerSingleton().logger.log_info(
-                f"update_image"
+                f"Ui_MainWindow.setupUi.update_image(...)"
             )
             self.imageGraphicsView.scene.clear()
             if program_state.draw_image is not None:
@@ -302,7 +302,7 @@ class Ui_MainWindow(object):
         program_state = ProgramStateSingleton().program_state
         def update_tree():
             LoggerSingleton().logger.log_info(
-                f"update_tree"
+                f"Ui_MainWindow.setupUi.update_tree()"
             )
             if (program_state.mets_book is not None
                     and program_state.current_page_index is not None
@@ -318,7 +318,7 @@ class Ui_MainWindow(object):
         def on_selection_changed():
             curr_item = self.treeDisplayChains.currentItem()
             LoggerSingleton().logger.log_info(
-                f"treeDisplayChains.clicked ("
+                f"Ui_MainWindow.setupUi.on_selection_changed() ("
                 f"col_0 = '{curr_item.text(0) if curr_item is not None else None}', "
                 f"col_1 = '{curr_item.text(1) if curr_item is not None else None}'"
                 f")"
@@ -392,6 +392,7 @@ class Ui_MainWindow(object):
             This function is called when the current page selection is changed and RETURN or ENTER was pressed.
             We use it to check validity of the user input and go to the selected page.
             """
+
             suffix = f" / {program_state.number_of_pages}"
             current_text = self.lineEditCurrentPage.text()
 
@@ -451,7 +452,7 @@ class Ui_MainWindow(object):
         # Update status bar
         def update_status_bar():
             LoggerSingleton().logger.log_info(
-                f"update_status_bar"
+                f"Ui_MainWindow.setupUi.update_status_bar()"
             )
 
             currently_selected_object_text = "Currently selected: "
@@ -610,6 +611,9 @@ class Ui_MainWindow(object):
         :param toast_text: Text of the toast notification.
         :param toast_preset: Preset of the toast notification, e.g., ToastPreset.SUCCESS or ToastPreset.FAILURE.
         """
+        LoggerSingleton().logger.log_info(
+            f"Ui_MainWindow.show_toast(toast_title={toast_title}, toast_text={toast_text}, toast_preset={toast_preset})"
+        )
         toast = Toast(self.centralwidget)
         toast.setDuration(4000)
         toast.setTitle(toast_title)
@@ -625,7 +629,7 @@ class Ui_MainWindow(object):
         :param chains: Connection chains.
         """
         LoggerSingleton().logger.log_info(
-            f"_tree_from_chains"
+            f"Ui_MainWindow._tree_from_chains(...)"
         )
         self.treeDisplayChains.clearSelection()
         self.treeDisplayChains.clear()
