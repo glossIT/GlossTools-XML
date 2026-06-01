@@ -45,7 +45,7 @@ class _Logger:
         :param log_file: The file where logs will be written.
         """
         self.logger = logging.getLogger("ExceptionLogger")
-        logging_level = logging.WARNING
+        logging_level = logging.DEBUG
         self.logger.setLevel(logging_level)  # Set the logging level to ERROR
 
         # Create a file handler to write logs to a file
