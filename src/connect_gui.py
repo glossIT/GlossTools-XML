@@ -1,10 +1,11 @@
 import os
 import shutil
 
-from PySide6.QtGui import QIcon, Qt
+from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt
+from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, \
     QMessageBox
-from PySide6.QtCore import Signal, QCoreApplication, QSettings, QThread, Slot, \
+from PySide6.QtCore import Signal, QCoreApplication, QSettings, QSizeF, QThread, Slot, \
     qInstallMessageHandler, QtMsgType
 import sys
 from typing import Callable
@@ -145,6 +146,7 @@ class MainWindow(QMainWindow):
         self.ui.buttonReplacePageXml.clicked.connect(self._replace_pagexml)
         self.ui.buttonExportTei.clicked.connect(self._export_tei)
         self.ui.buttonExportMets.clicked.connect(self._export_mets)
+        self.ui.buttonExportView.clicked.connect(self._export_view)
 
         self.threads = dict()
 
@@ -641,6 +643,65 @@ class MainWindow(QMainWindow):
 
         self.thread_function(on_export_mets)
 
+    def _export_view(self):
+        """
+        Asks the user to select a file to which the currently displayed view is exported as PDF.
+        """
+        LoggerSingleton().logger.log_info(f"MainWindow._export_view()")
+        program_state = ProgramStateSingleton().program_state
+        if program_state.save_file_path is not None:
+            default_filename = "".join(program_state.save_file_path.split(".")[:-1])  # remove extension
+        else:
+            default_filename = "export"
+        default_filename += "_view.pdf"
+
+        # get path of where the file should be saved
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            caption="Export current view as PDF",
+            dir=default_filename,
+            filter="PDF File (*.xml);;All Files (*.*)"
+        )
+        if save_path is not None and save_path != "":
+            if save_path.split(".")[-1] != "pdf":
+                save_path += ".pdf"
+            loading_window_content = LoadingDialogContent()
+
+            def on_export():
+                loading_window_content.status_text = "Please wait..."
+                loading_window_content.action_text = "Constructing view"
+
+                try:
+                    printer = QPrinter()
+                    printer.setOutputFormat(QPrinter.PdfFormat)
+                    printer.setOutputFileName(save_path)
+
+                    scene = self.ui.imageGraphicsView.scene
+                    rect = scene.sceneRect()
+
+                    page_size = QPageSize(QSizeF(rect.width(), rect.height()), QPageSize.Point)
+                    printer.setPageSize(page_size)
+
+                    printer.setFullPage(True)
+                except Exception as e:
+                    LoggerSingleton().logger.log_exception(e)
+                    self.show_error_dialog.emit("Error",
+                                                f"Failed to construct PDF printer.")
+                    return
+
+                loading_window_content.action_text = "Saving to file system"
+                try:
+                    painter = QPainter(printer)
+                    scene.render(painter)
+                    painter.end()
+                except Exception as e:
+                    LoggerSingleton().logger.log_exception(e)
+                    self.show_error_dialog.emit("Error",
+                                                f"Failed to save file to file system.")
+                    return
+
+            self.thread_function(on_export, loading_window_content=loading_window_content)
+
     def _close_thread(self, thread_id: uuid.UUID) -> Callable:
         """
         Returns a function handle to a function that closes the thread with the passed ID and removes it
@@ -667,6 +728,7 @@ class MainWindow(QMainWindow):
         self.ui.buttonReplacePageXml.setEnabled(True)
         self.ui.buttonExportTei.setEnabled(True)
         self.ui.buttonExportMets.setEnabled(True)
+        self.ui.buttonExportView.setEnabled(True)
         self.ui.buttonPreviousPage.setEnabled(True)
         self.ui.buttonNextPage.setEnabled(True)
         self.ui.checkboxDisplayText.setEnabled(True)

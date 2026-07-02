@@ -41,6 +41,7 @@ class Ui_MainWindow(object):
         buttonSaveProject (QPushButton): Pushing it saves the project including connections as TEI.
         buttonExportTei (QPushButton): Pushing it exports the connections independent of TEI.
         buttonExportMets (QPushButton): Pushing it exports the PageXML, Image and METS file.
+        buttonExportView (QPushButton): Pushing it exports the view as a PDF file.
         buttonPreviousPage (QPushButton): Pushing it goes to the previous METSBook page.
         lineEditCurrentPage (QLabel): Displays the current page.
         buttonNextPage (QPushButton): Pushing it goes to the next METSBook page.
@@ -176,6 +177,16 @@ class Ui_MainWindow(object):
             lambda: LoggerSingleton().logger.log_user_interaction("buttonExportMets.clicked")
         )
         self.horizontalLayout.addWidget(self.buttonExportMets)
+
+        self.buttonExportView = QPushButton(self.centralwidget)
+        self.buttonExportView.setToolTip(u"Export the currently displayed view as a PDF file")
+        self.buttonExportView.setEnabled(False)
+        self.buttonExportView.setObjectName(u"buttonExportView")
+        self.buttonExportView.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
+        self.buttonExportView.clicked.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("buttonExportView.clicked")
+        )
+        self.horizontalLayout.addWidget(self.buttonExportView)
 
         self.buttonPreviousPage.setToolTip("Go to previous manuscript page (Ctrl+←)")
         self.buttonPreviousPage.setEnabled(False)
@@ -592,6 +603,7 @@ class Ui_MainWindow(object):
         self.buttonReplacePageXml.setText(QCoreApplication.translate("MainWindow", u"Replace Current PageXML", None))
         self.buttonExportTei.setText(QCoreApplication.translate("MainWindow", u"Export TEI", None))
         self.buttonExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
+        self.buttonExportView.setText(QCoreApplication.translate("MainWindow", u"Export View (PDF)", None))
 
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Connection Chains:", None))
         ___qtreewidgetitem = self.treeDisplayChains.headerItem()
