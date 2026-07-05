@@ -92,7 +92,7 @@ class UndoRedoList:
         # add the new action
         # we need to copy the element, since it will be a list of connections to have a deep copy!
         # otherwise, the elements will not persist
-        self._elements.append(copy.deepcopy(element))
+        self._elements.append(element)
 
         # discard old actions if needed
         if len(self._elements) > self._max_size:

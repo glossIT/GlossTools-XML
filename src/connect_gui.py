@@ -195,6 +195,10 @@ class MainWindow(QMainWindow):
             self.thread_function(program_state.undo)
         elif key == Qt.Key.Key_M and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._export_mets()
+        elif key == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            import objgraph
+            objgraph.show_growth(limit=10)
+            print("\n")
 
     def closeEvent(self, event):
         """

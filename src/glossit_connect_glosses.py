@@ -241,7 +241,6 @@ class GlossOnPageConnector:
 
     @connections.setter
     def connections(self, other):
-        del self._connections
         self._connections = other
 
     @property
@@ -523,7 +522,10 @@ class GlossOnPageConnector:
         """
         assert cls.are_connections_acyclic(page_connections)
 
-        temp_connections = copy.deepcopy(page_connections)
+        # Shallow copy only: the ConnectedPair objects are never mutated here, they are just
+        # regrouped into chains. A deepcopy would clone the entire METSPage object graph
+        # (TEI tree, all lines and words) reachable via connection.start.page.
+        temp_connections = list(page_connections)
         connection_cycles = []
         for idx in range(len(temp_connections) - 1, -1, -1):
             connection = temp_connections[idx]
