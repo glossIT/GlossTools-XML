@@ -241,6 +241,7 @@ class GlossOnPageConnector:
 
     @connections.setter
     def connections(self, other):
+        del self._connections
         self._connections = other
 
     @property
@@ -248,7 +249,7 @@ class GlossOnPageConnector:
         return self._page
 
     @property
-    def clean_tei(self):
+    def clean_tei(self) -> BeautifulSoup:
         return self._clean_tei
 
     @clean_tei.setter
