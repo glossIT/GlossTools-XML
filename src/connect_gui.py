@@ -121,6 +121,7 @@ class MainWindow(QMainWindow):
                       images are exported.
         _close_thread (uuid.UUID): Closes the thread with the passed ID and removes it from the list threads.
         _enable_buttons: Enables all buttons that can only be accessed after a project is loaded or created.
+        _show_toast (str, str, ToastPreset): Forwards a show_toast signal to the UI on the main thread.
     """
     show_error_dialog = Signal(str, str)
 
@@ -138,7 +139,9 @@ class MainWindow(QMainWindow):
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        program_state.show_toast.connect(self.ui.show_toast)
+
+        # Connect to a bound method of this QObject to show toasts
+        program_state.show_toast.connect(self._show_toast)
 
         # Load window geometry
         self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
@@ -750,6 +753,12 @@ class MainWindow(QMainWindow):
         self.ui.buttonNextPage.setEnabled(True)
         self.ui.checkboxDisplayText.setEnabled(True)
         self.ui.lineEditCurrentPage.setEnabled(True)
+
+    def _show_toast(self, toast_title, toast_text, toast_preset):
+        """
+        Forwards a show_toast signal to the UI on the main thread.
+        """
+        self.ui.show_toast(toast_title, toast_text, toast_preset)
 
 
 def start_gui():
