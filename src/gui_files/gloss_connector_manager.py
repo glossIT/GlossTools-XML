@@ -68,13 +68,13 @@ class GlossConnectionHandler:
     Private Methods:
         _execute_callback: Executes the callback and sets the flag for unsaved changes.
     """
-    def __init__(self, callback: Callable, connector_list: list[ObservableGlossOnPageConnector] = []):
+    def __init__(self, callback: Callable, connector_list: list[ObservableGlossOnPageConnector] = None):
         """
         Initializes an instance.
         :param callback: Callback to be executed when the state is changed.
         """
         self.callback = callback
-        self._connector_list = connector_list
+        self._connector_list = connector_list if connector_list is not None else []
 
         self._buffered_serialization = None
 
