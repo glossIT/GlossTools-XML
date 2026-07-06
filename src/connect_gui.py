@@ -52,14 +52,16 @@ class ThreadWrapper(QThread):
     such that the main loop is not blocked.
 
     Attributes:
-        finished (Signal): This signal is emitted when the thread has finished executing its assigned function.
+        finished (Signal[object]): This signal is emitted when the thread has finished executing its assigned function.
+                                   It carries the thread_id assigned by MainWindow.thread_function.
         function_to_run (Callable): The costly function that should be run in a separate thread.
+        thread_id (uuid.UUID | None): Identifier assigned by MainWindow.thread_function for cleanup bookkeeping.
 
     Methods:
         run: Starts executing the function passed in a separate thread. Upon finishing, the signal
              finished is emitted.
     """
-    finished = Signal()
+    finished = Signal(object)
 
     def __init__(self, function_to_run: Callable = None):
         """
@@ -69,6 +71,7 @@ class ThreadWrapper(QThread):
         """
         super().__init__()
         self.function_to_run = function_to_run
+        self.thread_id = None
 
     def run(self):
         """
@@ -78,9 +81,12 @@ class ThreadWrapper(QThread):
         LoggerSingleton().logger.log_threaded_function(self.function_to_run.__name__)
         try:
             self.function_to_run()
-            self.finished.emit()
         except Exception as e:
             LoggerSingleton().logger.log_exception(e)
+        finally:
+            # Always emit, even on exception! Otherwise the modal LoadingDialog is never closed
+            # and the GUI is stuck behind an unclosable dialog
+            self.finished.emit(self.thread_id)
 
 
 class MainWindow(QMainWindow):
@@ -115,6 +121,7 @@ class MainWindow(QMainWindow):
                       images are exported.
         _close_thread (uuid.UUID): Closes the thread with the passed ID and removes it from the list threads.
         _enable_buttons: Enables all buttons that can only be accessed after a project is loaded or created.
+        _show_toast (str, str, ToastPreset): Forwards a show_toast signal to the UI on the main thread.
     """
     show_error_dialog = Signal(str, str)
 
@@ -132,7 +139,9 @@ class MainWindow(QMainWindow):
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        program_state.show_toast.connect(self.ui.show_toast)
+
+        # Connect to a bound method of this QObject to show toasts
+        program_state.show_toast.connect(self._show_toast)
 
         # Load window geometry
         self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
@@ -195,6 +204,10 @@ class MainWindow(QMainWindow):
             self.thread_function(program_state.undo)
         elif key == Qt.Key.Key_M and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._export_mets()
+        elif key == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            import objgraph
+            objgraph.show_growth(limit=10)
+            print("\n")
 
     def closeEvent(self, event):
         """
@@ -239,8 +252,15 @@ class MainWindow(QMainWindow):
         loading_dialog.show()
         new_thread = ThreadWrapper(function_to_run)
         thread_id = uuid.uuid4()
+        new_thread.thread_id = thread_id
         self.threads[thread_id] = {"thread": new_thread, "loading_dialog": loading_dialog}
-        new_thread.finished.connect(self._close_thread(thread_id=thread_id))
+
+        # Connect to the bound method (a slot on this QObject) so the cleanup runs on the
+        # main thread via a queued connection. Connecting a plain closure here
+        # would make Qt invoke it in the emitting worker thread, where closing the dialog
+        # (a GUI operation) is NOT allowed and deadlocks the application!
+        new_thread.finished.connect(self._close_thread)
+
         if exit_after:
             new_thread.finished.connect(self.close)
         new_thread.start()
@@ -702,21 +722,21 @@ class MainWindow(QMainWindow):
 
             self.thread_function(on_export, loading_window_content=loading_window_content)
 
-    def _close_thread(self, thread_id: uuid.UUID) -> Callable:
+    @Slot(object)
+    def _close_thread(self, thread_id: uuid.UUID):
         """
-        Returns a function handle to a function that closes the thread with the passed ID and removes it
-        from the list threads.
+        Closes the loading dialog belonging to the finished thread and removes the thread from the
+        dictionary threads. Invoked on the main threadd via the ThreadWrapper.finished signal.
         :param thread_id: ID of the thread to be closed.
-        :return: Function handle.
         """
         LoggerSingleton().logger.log_info(f"MainWindow._close_thread(thread_id={thread_id})")
-        def close_thread():
-            if thread_id in self.threads:
-                self.threads[thread_id]["loading_dialog"].close_dialog()
-                self.threads[thread_id]["thread"].terminate()
-                del self.threads[thread_id]
+        entry = self.threads.pop(thread_id, None)
+        if entry is not None:
+            entry["loading_dialog"].close_dialog()
+            # The thread has already left its run() method (the signal finished was emitted at its end).
+            # Now, wait for the OS thread to fully terminate before dropping the last reference.
+            entry["thread"].wait()
 
-        return close_thread
 
     def _enable_buttons(self):
         """
@@ -733,6 +753,12 @@ class MainWindow(QMainWindow):
         self.ui.buttonNextPage.setEnabled(True)
         self.ui.checkboxDisplayText.setEnabled(True)
         self.ui.lineEditCurrentPage.setEnabled(True)
+
+    def _show_toast(self, toast_title, toast_text, toast_preset):
+        """
+        Forwards a show_toast signal to the UI on the main thread.
+        """
+        self.ui.show_toast(toast_title, toast_text, toast_preset)
 
 
 def start_gui():

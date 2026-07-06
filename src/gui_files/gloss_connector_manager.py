@@ -12,6 +12,9 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
     Class ObservableGlossOnPageConnector endows GlossConnector with callback functionality
     for all methods that change the internal state.
 
+    Properties:
+        clean_tei (BeautifulSoup): The page TEI, but all connection info and IDs are stripped away.
+
     Attributes:
         callback (Callable): Callback to be executed when the state is changed.
         has_unsaved_changes (bool): True if the object has some unsaved changes.
@@ -24,17 +27,6 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
         super().__init__(*args, **kwargs)
         self.callback = callback
         self.has_unsaved_changes = False
-
-    @property
-    def connections(self):
-        return super().connections
-
-    @connections.setter
-    def connections(self, other):
-        GlossOnPageConnector.connections.fset(self, other)
-        self.has_unsaved_changes = True
-        if self.callback is not None:
-            self.callback()
 
     @property
     def clean_tei(self):
@@ -76,13 +68,13 @@ class GlossConnectionHandler:
     Private Methods:
         _execute_callback: Executes the callback and sets the flag for unsaved changes.
     """
-    def __init__(self, callback: Callable, connector_list: list[ObservableGlossOnPageConnector] = []):
+    def __init__(self, callback: Callable, connector_list: list[ObservableGlossOnPageConnector] = None):
         """
         Initializes an instance.
         :param callback: Callback to be executed when the state is changed.
         """
         self.callback = callback
-        self._connector_list = connector_list
+        self._connector_list = connector_list if connector_list is not None else []
 
         self._buffered_serialization = None
 
@@ -179,7 +171,8 @@ class GlossConnectionHandler:
                     constructed_object.end.page = current_page
                 current_page_connections.append(constructed_object)
             connector = ObservableGlossOnPageConnector(current_page, callback=self._execute_callback)
-            connector.connections = current_page_connections
+            for connection in current_page_connections:
+                connector.connections.append(connection)
             connectors.append(connector)
             
         self._connector_list = connectors

@@ -49,14 +49,18 @@ class UndoRedoList:
         Goes to the previous element and returns it.
         :return: The previous element.
         """
-        return self._elements[self._counter.previous_index()]
+        # Return a shallow copy: callers install the returned list as the live connections
+        # list, and appending to it must not rewrite the stored history element.
+        return copy.copy(self._elements[self._counter.previous_index()])
 
     def next_element(self):
         """
         Goes to the next element and returns it.
         :return: The next element.
         """
-        return self._elements[self._counter.next_index()]
+        # Return a shallow copy: callers install the returned list as the live connections
+        # list, and appending to it must not rewrite the stored history element.
+        return copy.copy(self._elements[self._counter.next_index()])
 
     def has_elements(self) -> bool:
         """
@@ -89,10 +93,10 @@ class UndoRedoList:
         current_index = self._counter.current_index
         self._elements = self._elements[:current_index+1]
 
-        # add the new action
-        # we need to copy the element, since it will be a list of connections to have a deep copy!
-        # otherwise, the elements will not persist
-        self._elements.append(copy.deepcopy(element))
+        # Add the new action:
+        # We need to copy the element,
+        # otherwise, the elements will not persist.
+        self._elements.append(copy.copy(element))
 
         # discard old actions if needed
         if len(self._elements) > self._max_size:

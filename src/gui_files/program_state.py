@@ -24,9 +24,10 @@ class _ProgramState(QObject):
 
     Properties:
         data_changed (Signal): Signal that is emitted when data has been changed in the program state.
+                               NEVER emit when not in the main loop! Use _schedule_emit instead.
         show_toast (Signal[str, str, ToastPreset]): Signal that is emitted when a toast should be displayed.
                                                     The arguments are title, message, and ToastPreset.
-        _request_debounce (Signal): Signal that is emitted when the debounce is requested.
+        _request_debounce (Signal): Signal that is emitted when the debouncing is requested.
 
         has_unsaved_changes (bool): If True, the program state has unsaved changes.
         icon (QIcon | None): Stores the application icon.
@@ -226,7 +227,7 @@ class _ProgramState(QObject):
         )
         self._undo_redo_list.reset()
         self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("from_save_file")
+        self._schedule_emit("from_save_file")
 
     def go_to_next_page(self):
         """
@@ -237,7 +238,7 @@ class _ProgramState(QObject):
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
         self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("go_to_next_page")
+        self._schedule_emit("go_to_next_page")
 
     def go_to_previous_page(self):
         """
@@ -248,7 +249,7 @@ class _ProgramState(QObject):
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
         self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("go_to_previous_page")
+        self._schedule_emit("go_to_previous_page")
 
     def go_to_page(self, page_idx: int):
         """
@@ -260,7 +261,7 @@ class _ProgramState(QObject):
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
         self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("go_to_page")
+        self._schedule_emit("go_to_page")
 
     def update_display_text(self, value: bool):
         """
@@ -291,7 +292,7 @@ class _ProgramState(QObject):
         )
         self._update_unconnected_gloss_lines()
         self._currently_selected_object = None
-        self.data_changed.emit("construct_current_page_graphics")
+        self._schedule_emit("construct_current_page_graphics")
 
     def page_index_is_valid(self, page_idx: int) -> bool:
         """
