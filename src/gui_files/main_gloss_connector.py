@@ -14,7 +14,7 @@ from PySide6.QtGui import (QAction, QIcon, QGuiApplication)
 from PySide6.QtWidgets import (QGridLayout, QHBoxLayout,
                                QLabel, QMainWindow, QMenuBar,
                                QPushButton, QSizePolicy, QStatusBar, QTreeWidget,
-                               QTreeWidgetItem, QVBoxLayout, QWidget, QCheckBox)
+                               QTreeWidgetItem, QVBoxLayout, QWidget, QCheckBox, QDockWidget)
 from pyqttoast import Toast, ToastPosition, ToastPreset
 from coordinate_manipulation import rectangle_xywh
 from glossit_connect_glosses import ConnectedPair, Word
@@ -213,21 +213,19 @@ class Ui_MainWindow(object):
         self.checkboxDisplayText.setText("Display Text")
         self.checkboxDisplayText.setEnabled(False)
 
-        self.verticalLayout = QVBoxLayout()
-        self.verticalLayout.setObjectName(u"verticalLayout")
-        self.label_2 = QLabel(self.centralwidget)
-        self.label_2.setObjectName(u"label_2")
+        # Tree view
+        container = QWidget(self.centralwidget)
 
-        self.verticalLayout.addWidget(self.label_2)
+        self.verticalLayout = QVBoxLayout(container)
+        self.verticalLayout.setObjectName(u"verticalLayout")
 
         self.treeDisplayChains = QTreeWidget(self.centralwidget)
         self.treeDisplayChains.setObjectName(u"treeDisplayChains")
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.treeDisplayChains.sizePolicy().hasHeightForWidth())
         self.treeDisplayChains.setSizePolicy(sizePolicy)
-
         self.verticalLayout.addWidget(self.treeDisplayChains)
 
         self.buttonRemoveChain = QPushButton(self.centralwidget)
@@ -238,10 +236,12 @@ class Ui_MainWindow(object):
             lambda: LoggerSingleton().logger.log_user_interaction("buttonRemoveChain.clicked")
         )
         self.buttonRemoveChain.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.EditClear)))
-
         self.verticalLayout.addWidget(self.buttonRemoveChain)
 
-        self.gridLayout.addLayout(self.verticalLayout, 4, 0, 1, 1)
+        dock = QDockWidget("Connection Chains:", self.centralwidget)
+        dock.setWidget(container)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
 
         self.imageGraphicsView = ImageGraphicsView(self)
         self.imageGraphicsView.setObjectName(u"imageGraphicsView")
@@ -265,10 +265,9 @@ class Ui_MainWindow(object):
         self.buttonRedo.setToolTip(u"Redo the last action (Ctrl+Y or Ctrl+Shift+Z)")
         self.buttonRedo.setEnabled(False)
         self.horizontalLayoutUndoRedo.addWidget(self.buttonRedo)
-        self.gridLayout.addLayout(self.horizontalLayoutUndoRedo, 5, 0, 1, 1)
+        self.gridLayout.addLayout(self.horizontalLayoutUndoRedo, 3, 0, 1, 1)
 
         MainWindow.setCentralWidget(self.centralwidget)
-
 
         # Set up status bar
         self.statusbar = QStatusBar(MainWindow)
@@ -608,7 +607,6 @@ class Ui_MainWindow(object):
         self.buttonExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
         self.buttonExportView.setText(QCoreApplication.translate("MainWindow", u"Export View (PDF)", None))
 
-        self.label_2.setText(QCoreApplication.translate("MainWindow", u"Connection Chains:", None))
         ___qtreewidgetitem = self.treeDisplayChains.headerItem()
         ___qtreewidgetitem.setText(1, QCoreApplication.translate("MainWindow", u"Connection", None))
         ___qtreewidgetitem.setText(0, QCoreApplication.translate("MainWindow", u"Chain", None))

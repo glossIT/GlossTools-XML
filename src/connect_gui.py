@@ -3,8 +3,7 @@ import shutil
 
 from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, \
-    QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 from PySide6.QtCore import Signal, QCoreApplication, QSettings, QSizeF, QThread, Slot, \
     qInstallMessageHandler, QtMsgType
 import sys
