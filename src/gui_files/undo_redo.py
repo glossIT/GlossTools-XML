@@ -2,13 +2,44 @@ import copy
 
 from .cyclic_access import CyclicCounter
 
+from glossit_connect_glosses import ConnectedPair, Word
+from glossit_dataclasses import GlossLine
+
+
+class UndoRedoState:
+    """
+    Class UndoRedoState encapsulates the state that should be changed when performing undo or redo.
+
+    Properties:
+        connections (list[list[ConnectedPair]]): The list of connection chains.
+        selection (GlossLine | Word | None): The currently selected object.
+
+    Methods:
+        copy: Returns a copy of the object suitable for the Undo/Redo mechanics.
+    """
+    def __init__(self, connections: list[list[ConnectedPair]] = None, selection: GlossLine | Word | None = None):
+        """
+        Initialize the class.
+        :param connections: The list of connection chains.
+        :param selection: The currently selected object.
+        """
+        self.connections = copy.copy(connections) if connections is not None else []
+        self.selection = selection
+
+    def copy(self) -> "UndoRedoState":
+        """
+        Returns a copy of the object suitable for the Undo/Redo mechanics.
+        :return: A shallow copy of the object.
+        """
+        return UndoRedoState(copy.copy(self.connections), self.selection)
+
 
 class UndoRedoList:
     """
     Class UndoRedoList provides a representation of past and current actions.
 
     Private Attributes:
-        _elements (list): The list of elements that is to be traversed.
+        _elements (list[UndoRedoState]): The list of elements that is to be traversed.
         _counter (CyclicCounter): The cyclic counter for determining the index.
         _max_size (int). The maximum number of actions to keep in the list.
 
@@ -34,7 +65,7 @@ class UndoRedoList:
     def __len__(self):
         return len(self._counter)
 
-    def get_current_element(self):
+    def get_current_element(self) -> UndoRedoState | None:
         """
         Returns the currently selected element.
         :return: The currently selected element.
@@ -44,23 +75,23 @@ class UndoRedoList:
         else:
             return None
 
-    def previous_element(self):
+    def previous_element(self) -> UndoRedoState:
         """
         Goes to the previous element and returns it.
         :return: The previous element.
         """
         # Return a shallow copy: callers install the returned list as the live connections
         # list, and appending to it must not rewrite the stored history element.
-        return copy.copy(self._elements[self._counter.previous_index()])
+        return self._elements[self._counter.previous_index()].copy()
 
-    def next_element(self):
+    def next_element(self) -> UndoRedoState:
         """
         Goes to the next element and returns it.
         :return: The next element.
         """
         # Return a shallow copy: callers install the returned list as the live connections
         # list, and appending to it must not rewrite the stored history element.
-        return copy.copy(self._elements[self._counter.next_index()])
+        return self._elements[self._counter.next_index()].copy()
 
     def has_elements(self) -> bool:
         """

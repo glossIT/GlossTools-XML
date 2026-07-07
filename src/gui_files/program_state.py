@@ -13,7 +13,7 @@ from .graphics import construct_connection_graphics_from_connector, construct_wo
 from .graphics_item import GraphicsItem
 from .logger import LoggerSingleton
 from .cyclic_access import CyclicCounter, CyclicList
-from .undo_redo import UndoRedoList
+from .undo_redo import UndoRedoState, UndoRedoList
 from .spatial_database import SpatialDatabase
 
 
@@ -182,7 +182,7 @@ class _ProgramState(QObject):
 
         self.clear_metsbook_cache()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element([])
+        self._undo_redo_list.add_element(UndoRedoState())
 
     def to_dict(self, tqdm_progress: tqdm.tqdm) -> dict:
         """
@@ -226,7 +226,11 @@ class _ProgramState(QObject):
             self._gloss_connection_handler[self.current_page_index].get_unconnected_gloss_line_ids()
         )
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections
+            )
+        )
         self._schedule_emit("from_save_file")
 
     def go_to_next_page(self):
@@ -237,7 +241,11 @@ class _ProgramState(QObject):
         self._page_counter.next_index()
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections,
+            )
+        )
         self._schedule_emit("go_to_next_page")
 
     def go_to_previous_page(self):
@@ -248,7 +256,11 @@ class _ProgramState(QObject):
         self._page_counter.previous_index()
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections,
+            )
+        )
         self._schedule_emit("go_to_previous_page")
 
     def go_to_page(self, page_idx: int):
@@ -260,7 +272,11 @@ class _ProgramState(QObject):
         self._page_counter.go_to_index(page_idx)
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections
+            )
+        )
         self._schedule_emit("go_to_page")
 
     def update_display_text(self, value: bool):
@@ -325,9 +341,15 @@ class _ProgramState(QObject):
         """
         LoggerSingleton().logger.log_info(f"_ProgramState.undo()")
         if self._undo_redo_list.has_elements_before():
+            previous_state = self._undo_redo_list.previous_element()
+
+            # update connections
             self._gloss_connection_handler[
                 self.current_page_index
-            ].connections = self._undo_redo_list.previous_element()
+            ].connections = previous_state.connections
+            # update object selection
+            self._currently_selected_object = previous_state.selection
+            # update view
             self._draw_connection_objects = construct_connection_graphics_from_connector(
                 self._gloss_connection_handler[self._page_counter.current_index]
             )
@@ -339,7 +361,13 @@ class _ProgramState(QObject):
         """
         LoggerSingleton().logger.log_info(f"_ProgramState.redo()")
         if self._undo_redo_list.has_elements_after():
-            self._gloss_connection_handler[self.current_page_index].connections = self._undo_redo_list.next_element()
+            next_state = self._undo_redo_list.next_element()
+
+            # update connections
+            self._gloss_connection_handler[self.current_page_index].connections = next_state.connections
+            # update object selection
+            self._currently_selected_object = next_state.selection
+            # update view
             self._draw_connection_objects = construct_connection_graphics_from_connector(
                 self._gloss_connection_handler[self._page_counter.current_index]
             )
@@ -362,6 +390,8 @@ class _ProgramState(QObject):
         )
         self._currently_selected_object = current_object
 
+        new_connections = None
+
         # Only do something if we have a previously selected and currently selected object
         if previous_object is not None and current_object is not None:
             all_start = [
@@ -376,7 +406,7 @@ class _ProgramState(QObject):
             # 4) the two objects to be connected are not allowed to result in some kind of circular connection,
             #    e.g., a -> b -> c -> a
 
-            new_connection = ConnectedPair(previous_object, current_object)
+            connection_to_add = ConnectedPair(previous_object, current_object)
 
             # 1) previous object is not a gloss
             if not isinstance(previous_object, GlossLine):
@@ -397,11 +427,16 @@ class _ProgramState(QObject):
             else:
                 self.gloss_connection_handler.append_connection_to_connector(
                     connector_idx=self.current_page_index,
-                    connection=new_connection
+                    connection=connection_to_add
                 )
 
-                # in this case, also update the undo_redo list!
-                self._undo_redo_list.add_element(self.gloss_connection_handler[self.current_page_index].connections)
+        # Update the undo_redo list with the (possibly new) connections and selected object!
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self.gloss_connection_handler[self.current_page_index].connections,
+                selection=current_object
+            )
+        )
 
         self._draw_connection_objects = construct_connection_graphics_from_connector(
             self.gloss_connection_handler[self.current_page_index]
@@ -428,7 +463,12 @@ class _ProgramState(QObject):
             self.current_page_index
         ].connections = new_connections
 
-        self._undo_redo_list.add_element(new_connections)
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=new_connections,
+                selection=self.currently_selected_object
+            )
+        )
 
         self._draw_connection_objects = construct_connection_graphics_from_connector(
             self.gloss_connection_handler[self.current_page_index]
