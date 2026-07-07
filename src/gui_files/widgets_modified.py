@@ -1,6 +1,6 @@
 from typing import Callable
 
-from PySide6.QtCore import QEvent, Signal, Qt, QTimer
+from PySide6.QtCore import QEvent, QTimer, Signal, Qt
 from PySide6.QtWidgets import QLineEdit, QWidget, QLabel, QMenu, QToolTip
 
 from gui_files.logger import LoggerSingleton
