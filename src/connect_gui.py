@@ -145,25 +145,26 @@ class MainWindow(QMainWindow):
         # Load window geometry
         self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
         self.restoreGeometry(self.settings.value("windowGeometry"))
+        self.restoreState(self.settings.value("windowState"))
 
         # connect buttons to actions
-        self.ui.buttonNewProject.triggered.connect(self._new_project)
-        self.ui.buttonNewProject.setShortcut(QKeySequence("Ctrl+N"))
+        self.ui.actionNewProject.triggered.connect(self._new_project)
+        self.ui.actionNewProject.setShortcut(QKeySequence("Ctrl+N"))
 
-        self.ui.buttonOpenProject.triggered.connect(self._open_project)
-        self.ui.buttonOpenProject.setShortcut(QKeySequence("Ctrl+O"))
+        self.ui.actionOpenProject.triggered.connect(self._open_project)
+        self.ui.actionOpenProject.setShortcut(QKeySequence("Ctrl+O"))
 
-        self.ui.buttonSaveProject.triggered.connect(self._save_project)
-        self.ui.buttonSaveProject.setShortcut(QKeySequence("Ctrl+S"))
+        self.ui.actionSaveProject.triggered.connect(self._save_project)
+        self.ui.actionSaveProject.setShortcut(QKeySequence("Ctrl+S"))
 
-        self.ui.buttonSaveAsProject.triggered.connect(self._save_as_project)
-        self.ui.buttonSaveAsProject.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self.ui.actionSaveAsProject.triggered.connect(self._save_as_project)
+        self.ui.actionSaveAsProject.setShortcut(QKeySequence("Ctrl+Shift+S"))
 
-        self.ui.buttonReplacePageXml.triggered.connect(self._replace_pagexml)
-        self.ui.buttonReplacePageXml.setShortcut(QKeySequence("Ctrl+R"))
+        self.ui.actionReplacePageXml.triggered.connect(self._replace_pagexml)
+        self.ui.actionReplacePageXml.setShortcut(QKeySequence("Ctrl+R"))
 
-        self.ui.buttonExportTei.triggered.connect(self._export_tei)
-        self.ui.buttonExportTei.setShortcut(QKeySequence("Ctrl+E"))
+        self.ui.actionExportTei.triggered.connect(self._export_tei)
+        self.ui.actionExportTei.setShortcut(QKeySequence("Ctrl+E"))
 
         self.threads = dict()
 
@@ -224,6 +225,7 @@ class MainWindow(QMainWindow):
                 return
 
         self.settings.setValue("windowGeometry", self.saveGeometry())
+        self.settings.setValue("windowState", self.saveState())
         event.accept()
 
     def thread_function(
@@ -736,12 +738,12 @@ class MainWindow(QMainWindow):
         Enables all buttons that can only be accessed after a project is loaded or created.
         """
         LoggerSingleton().logger.log_info(f"MainWindow._enable_buttons()")
-        self.ui.buttonSaveProject.setEnabled(True)
-        self.ui.buttonSaveAsProject.setEnabled(True)
-        self.ui.buttonReplacePageXml.setEnabled(True)
-        self.ui.buttonExportTei.setEnabled(True)
-        self.ui.buttonExportMets.setEnabled(True)
-        self.ui.buttonExportView.setEnabled(True)
+        self.ui.actionSaveProject.setEnabled(True)
+        self.ui.actionSaveAsProject.setEnabled(True)
+        self.ui.actionReplacePageXml.setEnabled(True)
+        self.ui.actionExportTei.setEnabled(True)
+        self.ui.actionExportMets.setEnabled(True)
+        self.ui.actionExportView.setEnabled(True)
         self.ui.buttonPreviousPage.setEnabled(True)
         self.ui.buttonNextPage.setEnabled(True)
         self.ui.checkboxDisplayText.setEnabled(True)

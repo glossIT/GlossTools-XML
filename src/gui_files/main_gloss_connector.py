@@ -36,12 +36,12 @@ class Ui_MainWindow(object):
 
     Attributes:
         main_window (MainWindow): Reference to the parent main window.
-        buttonNewProject (QPushButton): Pushing it creates a new project.
-        buttonOpenProject (QPushButton): Pushing it loads a project.
-        buttonSaveProject (QPushButton): Pushing it saves the project including connections as TEI.
-        buttonExportTei (QPushButton): Pushing it exports the connections independent of TEI.
-        buttonExportMets (QPushButton): Pushing it exports the PageXML, Image and METS file.
-        buttonExportView (QPushButton): Pushing it exports the view as a PDF file.
+        actionNewProject (QPushButton): Pushing it creates a new project.
+        actionOpenProject (QPushButton): Pushing it loads a project.
+        actionSaveProject (QPushButton): Pushing it saves the project including connections as TEI.
+        actionExportTei (QPushButton): Pushing it exports the connections independent of TEI.
+        actionExportMets (QPushButton): Pushing it exports the PageXML, Image and METS file.
+        actionExportView (QPushButton): Pushing it exports the view as a PDF file.
         buttonPreviousPage (QPushButton): Pushing it goes to the previous METSBook page.
         lineEditCurrentPage (QLabel): Displays the current page.
         buttonNextPage (QPushButton): Pushing it goes to the next METSBook page.
@@ -112,86 +112,86 @@ class Ui_MainWindow(object):
         self.menubar.setGeometry(QRect(0, 0, 544, 23))
 
         file_menu = ToolTipMenu("File")
-        self.buttonNewProject = QAction(self.centralwidget)
-        self.buttonNewProject.setToolTip(u"Create a new GlossIT project")
-        self.buttonNewProject.setObjectName(u"buttonNewProject")
-        self.buttonNewProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentNew)))
-        self.buttonNewProject.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonNewProject.clicked")
+        self.actionNewProject = QAction(self.centralwidget)
+        self.actionNewProject.setToolTip(u"Create a new GlossIT project")
+        self.actionNewProject.setObjectName(u"actionNewProject")
+        self.actionNewProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentNew)))
+        self.actionNewProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionNewProject.triggered")
         )
-        file_menu.addAction(self.buttonNewProject)
+        file_menu.addAction(self.actionNewProject)
 
-        self.buttonOpenProject = QAction(self.centralwidget)
-        self.buttonOpenProject.setToolTip(u"Open a GlossIT project from a file")
-        self.buttonOpenProject.setObjectName(u"buttonOpenProject")
-        self.buttonOpenProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen)))
-        self.buttonOpenProject.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonOpenProject.clicked")
+        self.actionOpenProject = QAction(self.centralwidget)
+        self.actionOpenProject.setToolTip(u"Open a GlossIT project from a file")
+        self.actionOpenProject.setObjectName(u"actionOpenProject")
+        self.actionOpenProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen)))
+        self.actionOpenProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionOpenProject.triggered")
         )
-        file_menu.addAction(self.buttonOpenProject)
+        file_menu.addAction(self.actionOpenProject)
 
-        self.buttonSaveProject = QAction(self.centralwidget)
-        self.buttonSaveProject.setToolTip(u"Save the current GlossIT project")
-        self.buttonSaveProject.setEnabled(False)
-        self.buttonSaveProject.setObjectName(u"buttonSaveProject")
-        self.buttonSaveProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSave)))
-        self.buttonSaveProject.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonSaveProject.clicked")
+        self.actionSaveProject = QAction(self.centralwidget)
+        self.actionSaveProject.setToolTip(u"Save the current GlossIT project")
+        self.actionSaveProject.setEnabled(False)
+        self.actionSaveProject.setObjectName(u"actionSaveProject")
+        self.actionSaveProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSave)))
+        self.actionSaveProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionSaveProject.triggered")
         )
-        file_menu.addAction(self.buttonSaveProject)
+        file_menu.addAction(self.actionSaveProject)
 
-        self.buttonSaveAsProject = QAction(self.centralwidget)
-        self.buttonSaveAsProject.setToolTip(u"Save the current GlossIT project to another file")
-        self.buttonSaveAsProject.setEnabled(False)
-        self.buttonSaveAsProject.setObjectName(u"buttonSaveAsProject")
-        self.buttonSaveAsProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSaveAs)))
-        self.buttonSaveAsProject.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonSaveAsProject.clicked")
+        self.actionSaveAsProject = QAction(self.centralwidget)
+        self.actionSaveAsProject.setToolTip(u"Save the current GlossIT project to another file")
+        self.actionSaveAsProject.setEnabled(False)
+        self.actionSaveAsProject.setObjectName(u"actionSaveAsProject")
+        self.actionSaveAsProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSaveAs)))
+        self.actionSaveAsProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionSaveAsProject.triggered")
         )
-        file_menu.addAction(self.buttonSaveAsProject)
+        file_menu.addAction(self.actionSaveAsProject)
 
         edit_menu = ToolTipMenu("Edit")
-        self.buttonReplacePageXml = QAction(self.centralwidget)
-        self.buttonReplacePageXml.setToolTip(u"Replace the current PageXML data")
-        self.buttonReplacePageXml.setEnabled(False)
-        self.buttonReplacePageXml.setObjectName(u"buttonReplacePageXml")
-        self.buttonReplacePageXml.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentRevert)))
-        self.buttonReplacePageXml.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonReplacePageXml.clicked")
+        self.actionReplacePageXml = QAction(self.centralwidget)
+        self.actionReplacePageXml.setToolTip(u"Replace the current PageXML data")
+        self.actionReplacePageXml.setEnabled(False)
+        self.actionReplacePageXml.setObjectName(u"actionReplacePageXml")
+        self.actionReplacePageXml.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentRevert)))
+        self.actionReplacePageXml.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionReplacePageXml.triggered")
         )
-        edit_menu.addAction(self.buttonReplacePageXml)
+        edit_menu.addAction(self.actionReplacePageXml)
 
         export_menu = ToolTipMenu("Export")
-        self.buttonExportTei = QAction(self.centralwidget)
-        self.buttonExportTei.setToolTip(u"Export the project to a GlossIT TEI XML file")
-        self.buttonExportTei.setEnabled(False)
-        self.buttonExportTei.setObjectName(u"buttonExportTei")
-        self.buttonExportTei.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplySender)))
-        self.buttonExportTei.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonExportTei.clicked")
+        self.actionExportTei = QAction(self.centralwidget)
+        self.actionExportTei.setToolTip(u"Export the project to a GlossIT TEI XML file")
+        self.actionExportTei.setEnabled(False)
+        self.actionExportTei.setObjectName(u"actionExportTei")
+        self.actionExportTei.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplySender)))
+        self.actionExportTei.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionExportTei.clicked")
         )
-        export_menu.addAction(self.buttonExportTei)
+        export_menu.addAction(self.actionExportTei)
 
-        self.buttonExportMets = QAction(self.centralwidget)
-        self.buttonExportMets.setToolTip(u"Export the METS, images and PageXML to a folder; "
+        self.actionExportMets = QAction(self.centralwidget)
+        self.actionExportMets.setToolTip(u"Export the METS, images and PageXML to a folder; "
                                          u"gloss connections are disregarded")
-        self.buttonExportMets.setEnabled(False)
-        self.buttonExportMets.setObjectName(u"buttonExportMets")
-        self.buttonExportMets.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
-        self.buttonExportMets.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonExportMets.clicked")
+        self.actionExportMets.setEnabled(False)
+        self.actionExportMets.setObjectName(u"actionExportMets")
+        self.actionExportMets.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
+        self.actionExportMets.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionExportMets.clicked")
         )
-        export_menu.addAction(self.buttonExportMets)
+        export_menu.addAction(self.actionExportMets)
 
-        self.buttonExportView = QAction(self.centralwidget)
-        self.buttonExportView.setToolTip(u"Export the currently displayed view as a PDF file")
-        self.buttonExportView.setEnabled(False)
-        self.buttonExportView.setObjectName(u"buttonExportView")
-        self.buttonExportView.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
-        self.buttonExportView.triggered.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonExportView.clicked")
+        self.actionExportView = QAction(self.centralwidget)
+        self.actionExportView.setToolTip(u"Export the currently displayed view as a PDF file")
+        self.actionExportView.setEnabled(False)
+        self.actionExportView.setObjectName(u"actionExportView")
+        self.actionExportView.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSend)))
+        self.actionExportView.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionExportView.clicked")
         )
-        export_menu.addAction(self.buttonExportView)
+        export_menu.addAction(self.actionExportView)
 
         self.menubar.addMenu(file_menu)
         self.menubar.addMenu(edit_menu)
@@ -239,6 +239,7 @@ class Ui_MainWindow(object):
         self.verticalLayout.addWidget(self.buttonRemoveChain)
 
         dock = QDockWidget("Connection Chains:", self.centralwidget)
+        dock.setObjectName("connectionChainsDock")
         dock.setWidget(container)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
@@ -598,14 +599,14 @@ class Ui_MainWindow(object):
         self.buttonPreviousPage.setText(QCoreApplication.translate("MainWindow", u"<< Previous Page", None))
         self.lineEditCurrentPage.setText(QCoreApplication.translate("MainWindow", u"", None))
         self.buttonNextPage.setText(QCoreApplication.translate("MainWindow", u"Next Page >>", None))
-        self.buttonNewProject.setText(QCoreApplication.translate("MainWindow", u"New Project", None))
-        self.buttonOpenProject.setText(QCoreApplication.translate("MainWindow", u"Load Project", None))
-        self.buttonSaveProject.setText(QCoreApplication.translate("MainWindow", u"Save Project", None))
-        self.buttonSaveAsProject.setText(QCoreApplication.translate("MainWindow", u"Save Project As", None))
-        self.buttonReplacePageXml.setText(QCoreApplication.translate("MainWindow", u"Replace Current PageXML", None))
-        self.buttonExportTei.setText(QCoreApplication.translate("MainWindow", u"Export TEI", None))
-        self.buttonExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
-        self.buttonExportView.setText(QCoreApplication.translate("MainWindow", u"Export View (PDF)", None))
+        self.actionNewProject.setText(QCoreApplication.translate("MainWindow", u"New Project", None))
+        self.actionOpenProject.setText(QCoreApplication.translate("MainWindow", u"Load Project", None))
+        self.actionSaveProject.setText(QCoreApplication.translate("MainWindow", u"Save Project", None))
+        self.actionSaveAsProject.setText(QCoreApplication.translate("MainWindow", u"Save Project As", None))
+        self.actionReplacePageXml.setText(QCoreApplication.translate("MainWindow", u"Replace Current PageXML", None))
+        self.actionExportTei.setText(QCoreApplication.translate("MainWindow", u"Export TEI", None))
+        self.actionExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
+        self.actionExportView.setText(QCoreApplication.translate("MainWindow", u"Export View (PDF)", None))
 
         ___qtreewidgetitem = self.treeDisplayChains.headerItem()
         ___qtreewidgetitem.setText(1, QCoreApplication.translate("MainWindow", u"Connection", None))
