@@ -1,7 +1,6 @@
 import os
 import shutil
 
-import qdarkstyle
 from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
@@ -22,7 +21,8 @@ from gui_files.gloss_connector_manager import ObservableGlossOnPageConnector
 from gui_files.logger import LoggerSingleton
 from gui_files.main_gloss_connector import Ui_MainWindow
 from gui_files.program_state import ProgramStateSingleton
-from gui_files.settings import SettingsKey, settings_get, settings_set, settings_revert_to_default_values
+from gui_files.settings import SettingsKey, settings_get, settings_set, settings_revert_to_default_values, \
+    settings_apply_theme
 from gui_files.spatial_database import SpatialDatabase
 
 
@@ -95,6 +95,7 @@ class MainWindow(QMainWindow):
     Class MainWindow represents the gloss connector main window.
 
     Attributes:
+        app (QApplication): The QApplication.
         show_error_dialog (Signal[str, str]): This signal is emitted when an error message dialog should be displayed.
                                     First string is the title, second string is the error message.
         ui (Ui_MainWindow): The user interface associated with the main window.
@@ -126,8 +127,10 @@ class MainWindow(QMainWindow):
     """
     show_error_dialog = Signal(str, str)
 
-    def __init__(self):
+    def __init__(self, app: QApplication):
         super().__init__()
+        self.app = app
+
         self.show_error_dialog.connect(self._show_error_dialog)
 
         program_state = ProgramStateSingleton().program_state
@@ -155,6 +158,9 @@ class MainWindow(QMainWindow):
         # Load window geometry
         self.restoreGeometry(settings_get(SettingsKey.GEOMETRY))
         self.restoreState(settings_get(SettingsKey.WINDOW_STATE))
+
+        # Load correct light/dark theme
+        settings_apply_theme(self.app)
 
         # connect buttons to actions
         self.ui.actionNewProject.triggered.connect(self._new_project)
@@ -791,10 +797,6 @@ def start_gui():
 
         settings_revert_to_default_values()  # DEBUG
 
-        # Choose light or dark theme according to user preferences
-        if settings_get(SettingsKey.DARK_THEME_ENABLED):
-            app.setStyleSheet(qdarkstyle.load_stylesheet())
-
         # Redirect Qt stderr output to the logger
         qInstallMessageHandler(qt_message_handler)
 
@@ -802,7 +804,7 @@ def start_gui():
         icon.addFile("./gui_files/icon.png")
         app.setWindowIcon(icon)
         ProgramStateSingleton().program_state.icon = icon
-        window = MainWindow()
+        window = MainWindow(app)
         window.setWindowIcon(icon)
         window.show()
         sys.exit(app.exec())

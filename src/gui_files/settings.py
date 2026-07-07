@@ -1,4 +1,7 @@
 from enum import Enum
+
+import qdarkstyle
+from PyQt5.QtWidgets import QApplication
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor
 
@@ -10,7 +13,7 @@ class SettingsKey(str, Enum):
     GEOMETRY = "geometry"                               # Main window geometry (QByteArray)
     WINDOW_STATE = "windowState"                        # Main window state (QByteArray)
 
-    DARK_THEME_ENABLED = "darkThemeEnabled"             # True if the dark theme is enabled (boolean)
+    DARK_THEME_ENABLED = "darkThemeEnabled"             # True if the dark visual theme is enabled (boolean)
 
     ### Colors and Display Options ###
     FILL_TRANSPARENCY = "fillTransparency"              # The alpha value (between 0 and 255) of the box filling (int)
@@ -60,7 +63,7 @@ def settings_revert_to_default_values():
     Reverts all settings values to their default values.
     :return:
     """
-    settings_set(SettingsKey.DARK_THEME_ENABLED, False)
+    settings_set(SettingsKey.DARK_THEME_ENABLED, True)
 
     settings_set(SettingsKey.FILL_TRANSPARENCY, 48)
     settings_set(SettingsKey.TEXT_TRANSPARENCY, 100)
@@ -73,3 +76,16 @@ def settings_revert_to_default_values():
     settings_set(SettingsKey.REFERENCE_SIGN_TEXT, QColor(20, 20, 255, 255))
     settings_set(SettingsKey.GLOSS_FILL, QColor(0, 128, 0, 255))
     settings_set(SettingsKey.GLOSS_TEXT, QColor(20, 255, 20, 255))
+
+
+def settings_apply_theme(app: QApplication):
+    """
+    Applies the app theme.
+
+    :param app: QApplication instance.
+    """
+    if settings_get(SettingsKey.DARK_THEME_ENABLED):
+        app.setStyleSheet(qdarkstyle.load_stylesheet_pyside6())
+    else:
+        app.setStyleSheet("")
+
