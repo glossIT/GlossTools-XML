@@ -1,7 +1,7 @@
 from typing import Callable
 
-from PySide6.QtCore import QEvent, QTimer, Signal, Qt
-from PySide6.QtWidgets import QLineEdit, QWidget, QLabel
+from PySide6.QtCore import QEvent, Signal, Qt, QTimer
+from PySide6.QtWidgets import QLineEdit, QWidget, QLabel, QMenu, QToolTip
 
 from gui_files.logger import LoggerSingleton
 
@@ -60,3 +60,36 @@ class ClickableLabel(QLabel):
         """
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
+
+
+class ToolTipMenu(QMenu):
+    def __init__(self, title, parent=None, tooltip_delay=1000):
+        super().__init__(title, parent)
+        self._tooltip_timer = QTimer(self)
+        self._tooltip_timer.setSingleShot(True)
+        self._tooltip_timer.timeout.connect(self._show_tooltip)
+        self._current_action = None
+        self._current_pos = None
+        self._tooltip_delay = tooltip_delay
+
+    def mouseMoveEvent(self, event):
+        action = self.actionAt(event.pos())
+        if action != self._current_action:
+            self._tooltip_timer.stop()
+            QToolTip.hideText()
+            self._current_action = action
+            self._current_pos = event.globalPos()
+            if action and action.toolTip():
+                self._tooltip_timer.start(self._tooltip_delay)
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        self._tooltip_timer.stop()
+        QToolTip.hideText()
+        self._current_action = None
+        self._current_pos = None
+        super().leaveEvent(event)
+
+    def _show_tooltip(self):
+        if self._current_action and self._current_action.toolTip():
+            QToolTip.showText(self._current_pos, self._current_action.toolTip(), self)
