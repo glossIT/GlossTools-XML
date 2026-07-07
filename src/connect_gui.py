@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt
+from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, \
     QMessageBox
@@ -148,14 +148,23 @@ class MainWindow(QMainWindow):
         self.restoreGeometry(self.settings.value("windowGeometry"))
 
         # connect buttons to actions
-        self.ui.buttonNewProject.clicked.connect(self._new_project)
-        self.ui.buttonOpenProject.clicked.connect(self._open_project)
-        self.ui.buttonSaveProject.clicked.connect(self._save_project)
-        self.ui.buttonSaveAsProject.clicked.connect(self._save_as_project)
-        self.ui.buttonReplacePageXml.clicked.connect(self._replace_pagexml)
-        self.ui.buttonExportTei.clicked.connect(self._export_tei)
-        self.ui.buttonExportMets.clicked.connect(self._export_mets)
-        self.ui.buttonExportView.clicked.connect(self._export_view)
+        self.ui.buttonNewProject.triggered.connect(self._new_project)
+        self.ui.buttonNewProject.setShortcut(QKeySequence("Ctrl+N"))
+
+        self.ui.buttonOpenProject.triggered.connect(self._open_project)
+        self.ui.buttonOpenProject.setShortcut(QKeySequence("Ctrl+O"))
+
+        self.ui.buttonSaveProject.triggered.connect(self._save_project)
+        self.ui.buttonSaveProject.setShortcut(QKeySequence("Ctrl+S"))
+
+        self.ui.buttonSaveAsProject.triggered.connect(self._save_as_project)
+        self.ui.buttonSaveAsProject.setShortcut(QKeySequence("Ctrl+Shift+S"))
+
+        self.ui.buttonReplacePageXml.triggered.connect(self._replace_pagexml)
+        self.ui.buttonReplacePageXml.setShortcut(QKeySequence("Ctrl+R"))
+
+        self.ui.buttonExportTei.triggered.connect(self._export_tei)
+        self.ui.buttonExportTei.setShortcut(QKeySequence("Ctrl+E"))
 
         self.threads = dict()
 
@@ -170,20 +179,7 @@ class MainWindow(QMainWindow):
 
         if key == Qt.Key.Key_Escape:
             program_state.currently_selected_object = None
-        elif key == Qt.Key.Key_N and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._new_project()
-        elif key == Qt.Key.Key_O and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._open_project()
-        elif (key == Qt.Key.Key_S and
-              event.modifiers() & Qt.KeyboardModifier.ControlModifier and
-              event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
-            self._save_as_project()
-        elif key == Qt.Key.Key_S and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._save_project()
-        elif key == Qt.Key.Key_R and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._replace_pagexml()
-        elif key == Qt.Key.Key_E and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._export_tei()
+
         elif key == Qt.Key.Key_Left and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             def shortcut_to_previous_page():
                 program_state.go_to_previous_page()
@@ -202,8 +198,6 @@ class MainWindow(QMainWindow):
             self.thread_function(program_state.redo)
         elif key == Qt.Key.Key_Z and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.thread_function(program_state.undo)
-        elif key == Qt.Key.Key_M and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._export_mets()
         elif key == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             import objgraph
             objgraph.show_growth(limit=10)

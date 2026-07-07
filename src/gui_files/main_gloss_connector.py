@@ -9,8 +9,8 @@
 ################################################################################
 
 from PySide6.QtCore import (Slot, QCoreApplication, QMetaObject, QRect,
-                            QSize, Qt, QRectF, QTimer)
-from PySide6.QtGui import (QIcon, QGuiApplication)
+                            Qt, QRectF, QTimer)
+from PySide6.QtGui import (QAction, QIcon, QGuiApplication)
 from PySide6.QtWidgets import (QGridLayout, QHBoxLayout,
                                QLabel, QMainWindow, QMenuBar,
                                QPushButton, QSizePolicy, QStatusBar, QTreeWidget,
@@ -23,7 +23,7 @@ from glossit_dataclasses import GlossLine, LineType
 from .graphics import construct_connection_graphics_from_connector, \
     construct_currently_selected_object_graphic
 from .logger import LoggerSingleton
-from .widgets_modified import ClickableLabel, FocusableLineEdit
+from .widgets_modified import ClickableLabel, FocusableLineEdit, ToolTipMenu
 from .program_state import ProgramStateSingleton
 from .widget_imagegraphicsview import ImageGraphicsView
 
@@ -106,87 +106,97 @@ class Ui_MainWindow(object):
         self.textOptionsLayout.addWidget(self.checkboxDisplayText)
         self.gridLayout.addLayout(self.textOptionsLayout, 3, 0, 1, 1)
 
-        self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        # Menu bar for file and export operations
+        self.menubar = QMenuBar(MainWindow)
+        self.menubar.setObjectName(u"menubar")
+        self.menubar.setGeometry(QRect(0, 0, 544, 23))
 
-        self.buttonNewProject = QPushButton(self.centralwidget)
-        self.buttonNewProject.setToolTip(u"Create a new GlossIT project (Ctrl+N)")
+        file_menu = ToolTipMenu("File")
+        self.buttonNewProject = QAction(self.centralwidget)
+        self.buttonNewProject.setToolTip(u"Create a new GlossIT project")
         self.buttonNewProject.setObjectName(u"buttonNewProject")
         self.buttonNewProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentNew)))
-        self.buttonNewProject.clicked.connect(
+        self.buttonNewProject.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonNewProject.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonNewProject)
+        file_menu.addAction(self.buttonNewProject)
 
-        self.buttonOpenProject = QPushButton(self.centralwidget)
-        self.buttonOpenProject.setToolTip(u"Open a GlossIT project from a file (Ctrl+O)")
+        self.buttonOpenProject = QAction(self.centralwidget)
+        self.buttonOpenProject.setToolTip(u"Open a GlossIT project from a file")
         self.buttonOpenProject.setObjectName(u"buttonOpenProject")
         self.buttonOpenProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen)))
-        self.buttonOpenProject.clicked.connect(
+        self.buttonOpenProject.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonOpenProject.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonOpenProject)
+        file_menu.addAction(self.buttonOpenProject)
 
-        self.buttonSaveProject = QPushButton(self.centralwidget)
-        self.buttonSaveProject.setToolTip(u"Save the current GlossIT project (Ctrl+S)")
+        self.buttonSaveProject = QAction(self.centralwidget)
+        self.buttonSaveProject.setToolTip(u"Save the current GlossIT project")
         self.buttonSaveProject.setEnabled(False)
         self.buttonSaveProject.setObjectName(u"buttonSaveProject")
         self.buttonSaveProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSave)))
-        self.buttonSaveProject.clicked.connect(
+        self.buttonSaveProject.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonSaveProject.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonSaveProject)
+        file_menu.addAction(self.buttonSaveProject)
 
-        self.buttonSaveAsProject = QPushButton(self.centralwidget)
-        self.buttonSaveAsProject.setToolTip(u"Save the current GlossIT project to another file (Ctrl+Shift+S)")
+        self.buttonSaveAsProject = QAction(self.centralwidget)
+        self.buttonSaveAsProject.setToolTip(u"Save the current GlossIT project to another file")
         self.buttonSaveAsProject.setEnabled(False)
         self.buttonSaveAsProject.setObjectName(u"buttonSaveAsProject")
         self.buttonSaveAsProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSaveAs)))
-        self.buttonSaveAsProject.clicked.connect(
+        self.buttonSaveAsProject.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonSaveAsProject.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonSaveAsProject)
+        file_menu.addAction(self.buttonSaveAsProject)
 
-        self.buttonReplacePageXml = QPushButton(self.centralwidget)
-        self.buttonReplacePageXml.setToolTip(u"Replace the current PageXML data (Ctrl+R)")
+        edit_menu = ToolTipMenu("Edit")
+        self.buttonReplacePageXml = QAction(self.centralwidget)
+        self.buttonReplacePageXml.setToolTip(u"Replace the current PageXML data")
         self.buttonReplacePageXml.setEnabled(False)
         self.buttonReplacePageXml.setObjectName(u"buttonReplacePageXml")
         self.buttonReplacePageXml.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentRevert)))
-        self.buttonReplacePageXml.clicked.connect(
+        self.buttonReplacePageXml.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonReplacePageXml.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonReplacePageXml)
+        edit_menu.addAction(self.buttonReplacePageXml)
 
-        self.buttonExportTei = QPushButton(self.centralwidget)
-        self.buttonExportTei.setToolTip(u"Export the project to a GlossIT TEI XML file (Ctrl+E)")
+        export_menu = ToolTipMenu("Export")
+        self.buttonExportTei = QAction(self.centralwidget)
+        self.buttonExportTei.setToolTip(u"Export the project to a GlossIT TEI XML file")
         self.buttonExportTei.setEnabled(False)
         self.buttonExportTei.setObjectName(u"buttonExportTei")
         self.buttonExportTei.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplySender)))
-        self.buttonExportTei.clicked.connect(
+        self.buttonExportTei.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonExportTei.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonExportTei)
+        export_menu.addAction(self.buttonExportTei)
 
-        self.buttonExportMets = QPushButton(self.centralwidget)
+        self.buttonExportMets = QAction(self.centralwidget)
         self.buttonExportMets.setToolTip(u"Export the METS, images and PageXML to a folder; "
-                                         u"gloss connections are disregarded (Ctrl+M)")
+                                         u"gloss connections are disregarded")
         self.buttonExportMets.setEnabled(False)
         self.buttonExportMets.setObjectName(u"buttonExportMets")
         self.buttonExportMets.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
-        self.buttonExportMets.clicked.connect(
+        self.buttonExportMets.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonExportMets.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonExportMets)
+        export_menu.addAction(self.buttonExportMets)
 
-        self.buttonExportView = QPushButton(self.centralwidget)
+        self.buttonExportView = QAction(self.centralwidget)
         self.buttonExportView.setToolTip(u"Export the currently displayed view as a PDF file")
         self.buttonExportView.setEnabled(False)
         self.buttonExportView.setObjectName(u"buttonExportView")
         self.buttonExportView.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
-        self.buttonExportView.clicked.connect(
+        self.buttonExportView.triggered.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonExportView.clicked")
         )
-        self.horizontalLayout.addWidget(self.buttonExportView)
+        export_menu.addAction(self.buttonExportView)
+
+        self.menubar.addMenu(file_menu)
+        self.menubar.addMenu(edit_menu)
+        self.menubar.addMenu(export_menu)
+        MainWindow.setMenuBar(self.menubar)
 
         self.buttonPreviousPage.setToolTip("Go to previous manuscript page (Ctrl+←)")
         self.buttonPreviousPage.setEnabled(False)
@@ -203,8 +213,6 @@ class Ui_MainWindow(object):
         self.checkboxDisplayText.setText("Display Text")
         self.checkboxDisplayText.setEnabled(False)
 
-        self.gridLayout.addLayout(self.horizontalLayout, 0, 0, 1, 1)
-
         self.verticalLayout = QVBoxLayout()
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.label_2 = QLabel(self.centralwidget)
@@ -219,7 +227,6 @@ class Ui_MainWindow(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.treeDisplayChains.sizePolicy().hasHeightForWidth())
         self.treeDisplayChains.setSizePolicy(sizePolicy)
-        self.treeDisplayChains.setMinimumSize(QSize(0, 150))
 
         self.verticalLayout.addWidget(self.treeDisplayChains)
 
@@ -243,7 +250,6 @@ class Ui_MainWindow(object):
         sizePolicy1.setVerticalStretch(0)
         sizePolicy1.setHeightForWidth(self.imageGraphicsView.sizePolicy().hasHeightForWidth())
         self.imageGraphicsView.setSizePolicy(sizePolicy1)
-        self.imageGraphicsView.setMinimumSize(QSize(0, 300))
         self.gridLayout.addWidget(self.imageGraphicsView, 1, 0, 1, 1)
 
         self.horizontalLayoutUndoRedo = QHBoxLayout()
@@ -262,10 +268,7 @@ class Ui_MainWindow(object):
         self.gridLayout.addLayout(self.horizontalLayoutUndoRedo, 5, 0, 1, 1)
 
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QMenuBar(MainWindow)
-        self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 544, 23))
-        MainWindow.setMenuBar(self.menubar)
+
 
         # Set up status bar
         self.statusbar = QStatusBar(MainWindow)
