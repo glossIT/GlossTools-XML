@@ -1,10 +1,11 @@
 import os
 import shutil
 
+import qdarkstyle
 from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
-from PySide6.QtCore import Signal, QCoreApplication, QSettings, QSizeF, QThread, Slot, \
+from PySide6.QtCore import Signal, QCoreApplication, QSizeF, QThread, Slot, \
     qInstallMessageHandler, QtMsgType
 import sys
 from typing import Callable
@@ -21,6 +22,7 @@ from gui_files.gloss_connector_manager import ObservableGlossOnPageConnector
 from gui_files.logger import LoggerSingleton
 from gui_files.main_gloss_connector import Ui_MainWindow
 from gui_files.program_state import ProgramStateSingleton
+from gui_files.settings import SettingsKey, settings_get, settings_set, settings_revert_to_default_values
 from gui_files.spatial_database import SpatialDatabase
 
 
@@ -142,10 +144,17 @@ class MainWindow(QMainWindow):
         # Connect to a bound method of this QObject to show toasts
         program_state.show_toast.connect(self._show_toast)
 
+        # Check if all settings are set, otherwise reset them to default values
+        for key in SettingsKey:
+            if settings_get(key) is None:
+                settings_revert_to_default_values()
+                LoggerSingleton().logger.log_warning(f"Invalid setting value '{settings_get(key)}' for key '{key}'. "
+                                                     f"Revert all settings to default.")
+                break
+
         # Load window geometry
-        self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
-        self.restoreGeometry(self.settings.value("windowGeometry"))
-        self.restoreState(self.settings.value("windowState"))
+        self.restoreGeometry(settings_get(SettingsKey.GEOMETRY))
+        self.restoreState(settings_get(SettingsKey.WINDOW_STATE))
 
         # connect buttons to actions
         self.ui.actionNewProject.triggered.connect(self._new_project)
@@ -224,8 +233,8 @@ class MainWindow(QMainWindow):
                 self._save_project(exit_after=True)
                 return
 
-        self.settings.setValue("windowGeometry", self.saveGeometry())
-        self.settings.setValue("windowState", self.saveState())
+        settings_set(SettingsKey.GEOMETRY, self.saveGeometry())
+        settings_set(SettingsKey.WINDOW_STATE, self.saveState())
         event.accept()
 
     def thread_function(
@@ -779,6 +788,12 @@ def start_gui():
 
     try:
         app = QApplication(sys.argv)
+
+        settings_revert_to_default_values()  # DEBUG
+
+        # Choose light or dark theme according to user preferences
+        if settings_get(SettingsKey.DARK_THEME_ENABLED):
+            app.setStyleSheet(qdarkstyle.load_stylesheet())
 
         # Redirect Qt stderr output to the logger
         qInstallMessageHandler(qt_message_handler)

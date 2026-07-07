@@ -42,6 +42,7 @@ class Ui_MainWindow(object):
         actionExportTei (QPushButton): Pushing it exports the connections independent of TEI.
         actionExportMets (QPushButton): Pushing it exports the PageXML, Image and METS file.
         actionExportView (QPushButton): Pushing it exports the view as a PDF file.
+        actionOpenSettings (QPushButton): Pushing it opens the Preferences dialog.
         buttonPreviousPage (QPushButton): Pushing it goes to the previous METSBook page.
         lineEditCurrentPage (QLabel): Displays the current page.
         buttonNextPage (QPushButton): Pushing it goes to the next METSBook page.
@@ -96,15 +97,14 @@ class Ui_MainWindow(object):
         self.buttonNextPage.setObjectName(u"buttonNextPage")
 
         self.horizontalLayout_2.addWidget(self.buttonNextPage)
-        self.gridLayout.addLayout(self.horizontalLayout_2, 2, 0, 1, 1)
-
-        self.checkboxDisplayText = QCheckBox(self.centralwidget)
-        self.checkboxDisplayText.setObjectName(u"checkboxDisplayText")
+        self.gridLayout.addLayout(self.horizontalLayout_2, 1, 0, 1, 1)
 
         self.textOptionsLayout = QVBoxLayout()
         self.textOptionsLayout.setObjectName(u"textOptionsLayout")
+        self.checkboxDisplayText = QCheckBox(self.centralwidget)
+        self.checkboxDisplayText.setObjectName(u"checkboxDisplayText")
         self.textOptionsLayout.addWidget(self.checkboxDisplayText)
-        self.gridLayout.addLayout(self.textOptionsLayout, 3, 0, 1, 1)
+        self.gridLayout.addLayout(self.textOptionsLayout, 2, 0, 1, 1)
 
         # Menu bar for file and export operations
         self.menubar = QMenuBar(MainWindow)
@@ -160,6 +160,16 @@ class Ui_MainWindow(object):
             lambda: LoggerSingleton().logger.log_user_interaction("actionReplacePageXml.triggered")
         )
         edit_menu.addAction(self.actionReplacePageXml)
+
+        self.actionOpenSettings = QAction(self.centralwidget)
+        self.actionOpenSettings.setToolTip(u"Open the Settings Dialog")
+        self.actionOpenSettings.setEnabled(True)
+        self.actionOpenSettings.setObjectName(u"actionOpenSettings")
+        self.actionOpenSettings.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentProperties)))
+        self.actionOpenSettings.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionOpenSettings.triggered")
+        )
+        edit_menu.addAction(self.actionOpenSettings)
 
         export_menu = ToolTipMenu("Export")
         self.actionExportTei = QAction(self.centralwidget)
@@ -251,7 +261,7 @@ class Ui_MainWindow(object):
         sizePolicy1.setVerticalStretch(0)
         sizePolicy1.setHeightForWidth(self.imageGraphicsView.sizePolicy().hasHeightForWidth())
         self.imageGraphicsView.setSizePolicy(sizePolicy1)
-        self.gridLayout.addWidget(self.imageGraphicsView, 1, 0, 1, 1)
+        self.gridLayout.addWidget(self.imageGraphicsView, 0, 0, 1, 1)
 
         self.horizontalLayoutUndoRedo = QHBoxLayout()
         self.buttonUndo = QPushButton(self.centralwidget)
@@ -604,6 +614,7 @@ class Ui_MainWindow(object):
         self.actionSaveProject.setText(QCoreApplication.translate("MainWindow", u"Save Project", None))
         self.actionSaveAsProject.setText(QCoreApplication.translate("MainWindow", u"Save Project As", None))
         self.actionReplacePageXml.setText(QCoreApplication.translate("MainWindow", u"Replace Current PageXML", None))
+        self.actionOpenSettings.setText(QCoreApplication.translate("MainWindow", u"Preferences", None))
         self.actionExportTei.setText(QCoreApplication.translate("MainWindow", u"Export TEI", None))
         self.actionExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
         self.actionExportView.setText(QCoreApplication.translate("MainWindow", u"Export View (PDF)", None))
