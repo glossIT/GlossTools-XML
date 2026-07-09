@@ -110,12 +110,12 @@ def settings_get_default_values() -> dict:
         SettingsKey.SELECTION_TRANSPARENCY: 80,
 
         SettingsKey.ARROW_FILL: QColor(0, 0, 0),
-        SettingsKey.MAIN_WORD_FILL: QColor(255, 0, 0),
+        SettingsKey.MAIN_WORD_FILL: QColor(153, 153, 153),
         SettingsKey.MAIN_WORD_TEXT: QColor(255, 255, 255),
-        SettingsKey.REFERENCE_SIGN_FILL: QColor(0, 0, 128),
-        SettingsKey.REFERENCE_SIGN_TEXT: QColor(20, 20, 255),
-        SettingsKey.GLOSS_FILL: QColor(0, 128, 0),
-        SettingsKey.GLOSS_TEXT: QColor(20, 255, 20),
+        SettingsKey.REFERENCE_SIGN_FILL: QColor(0, 114, 178),
+        SettingsKey.REFERENCE_SIGN_TEXT: QColor(255, 255, 255),
+        SettingsKey.GLOSS_FILL: QColor(230, 159, 0),
+        SettingsKey.GLOSS_TEXT: QColor(255, 255, 255),
     }
 
 def settings_revert_to_default_values():
