@@ -95,7 +95,6 @@ class MainWindow(QMainWindow):
     Class MainWindow represents the gloss connector main window.
 
     Attributes:
-        app (QApplication): The QApplication.
         show_error_dialog (Signal[str, str]): This signal is emitted when an error message dialog should be displayed.
                                     First string is the title, second string is the error message.
         ui (Ui_MainWindow): The user interface associated with the main window.
@@ -128,9 +127,8 @@ class MainWindow(QMainWindow):
     """
     show_error_dialog = Signal(str, str)
 
-    def __init__(self, app: QApplication):
+    def __init__(self):
         super().__init__()
-        self.app = app
 
         self.show_error_dialog.connect(self._show_error_dialog)
 
@@ -159,6 +157,9 @@ class MainWindow(QMainWindow):
         # Load window geometry
         self.restoreGeometry(settings_get(SettingsKey.GEOMETRY))
         self.restoreState(settings_get(SettingsKey.WINDOW_STATE))
+
+        # Set debug logging
+        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
 
         # connect buttons to actions
         self.ui.actionNewProject.triggered.connect(self._new_project)
@@ -742,13 +743,14 @@ class MainWindow(QMainWindow):
         """
         LoggerSingleton().logger.log_info(f"MainWindow._open_settings()")
 
-        change_settings_dialog = ChangeSettingsDialog(self.app)
+        change_settings_dialog = ChangeSettingsDialog()
         settings_dict = change_settings_dialog.exec()
         if settings_dict is not None:
             for key, value in settings_dict.items():
                 settings_set(key, value)
 
         program_state = ProgramStateSingleton().program_state
+        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
         if program_state.draw_image is not None:
             program_state.construct_current_page_graphics()
 
@@ -822,7 +824,7 @@ def start_gui():
         icon.addFile("./gui_files/icon.png")
         app.setWindowIcon(icon)
         ProgramStateSingleton().program_state.icon = icon
-        window = MainWindow(app)
+        window = MainWindow()
         window.setWindowIcon(icon)
         window.show()
         sys.exit(app.exec())

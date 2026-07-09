@@ -11,6 +11,8 @@ class SettingsKey(str, Enum):
     GEOMETRY = "geometry"                               # Main window geometry (QByteArray)
     WINDOW_STATE = "windowState"                        # Main window state (QByteArray)
 
+    DEBUG_ENABLED = "debugEnabled"                      # True if detailed debug logging is activated (bool)
+
     ### Image Options ###
     IMAGE_BRIGHTNESS = "imageBrightness"                # Displayed manuscript image brightness, value between 0 and 2
     IMAGE_CONTRAST = "imageContrast"                    # Displayed manuscript image contrast, value between 0 and 2
@@ -72,8 +74,8 @@ def settings_get(key: SettingsKey) -> object:
             return QColor(value)
         else:
             return QColor(255, 255, 255, 255)
-    #if key == SettingsKey.DARK_THEME_ENABLED:  # boolean values
-    #    return value in [True, 'true', 'True', 1, '1']
+    if key == SettingsKey.DEBUG_ENABLED:
+        return value in [True, 'true', 'True', 1, '1']
     if key in {
         SettingsKey.FILL_TRANSPARENCY,
         SettingsKey.TEXT_TRANSPARENCY,
@@ -101,6 +103,8 @@ def settings_get_default_values() -> dict:
     :return: Dict of default settings.
     """
     return {
+        SettingsKey.DEBUG_ENABLED: False,
+
         SettingsKey.IMAGE_BRIGHTNESS: 0.6,
         SettingsKey.IMAGE_CONTRAST: 1.0,
         SettingsKey.IMAGE_SATURATION: 1.0,
