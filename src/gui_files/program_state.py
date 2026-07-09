@@ -13,6 +13,7 @@ from .graphics import construct_connection_graphics_from_connector, construct_wo
 from .graphics_item import GraphicsItem
 from .logger import LoggerSingleton
 from .cyclic_access import CyclicCounter, CyclicList
+from .settings import SettingsKey, settings_get
 from .undo_redo import UndoRedoState, UndoRedoList
 from .spatial_database import SpatialDatabase
 
@@ -295,10 +296,26 @@ class _ProgramState(QObject):
         Updates the graphics for the currently selected page for display. Call from separate thread!
         """
         LoggerSingleton().logger.log_info(f"_ProgramState.construct_current_page_graphics()")
+
+        # brightness
         enhancer = ImageEnhance.Brightness(
             self.mets_book[self.current_page_index].pageimg
         )
-        self._draw_image = enhancer.enhance(0.67)
+        self._draw_image = enhancer.enhance(settings_get(SettingsKey.IMAGE_BRIGHTNESS))
+
+        # contrast
+        enhancer = ImageEnhance.Contrast(
+            self._draw_image
+        )
+        self._draw_image = enhancer.enhance(settings_get(SettingsKey.IMAGE_CONTRAST))
+
+        # brightness
+        enhancer = ImageEnhance.Color(
+            self._draw_image
+        )
+        self._draw_image = enhancer.enhance(settings_get(SettingsKey.IMAGE_SATURATION))
+
+
         self._draw_word_gloss_objects = construct_word_and_gloss_graphics_from_mets_page(
             self.mets_book[self.current_page_index],
             display_text=self._display_text

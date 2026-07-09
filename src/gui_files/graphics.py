@@ -9,6 +9,7 @@ from xml_extraction import METSPage, polygon_to_rectangle
 from .gloss_connector_manager import ObservableGlossOnPageConnector
 from .graphics_item import ArrowItem, GraphicsItem, PolygonItem, TextItem
 from .logger import LoggerSingleton
+from .settings import SettingsKey, settings_get
 
 
 def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_text: bool) -> list[GraphicsItem]:
@@ -22,15 +23,19 @@ def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_tex
     """
     def get_gloss_color(gloss: GlossLine):
         if gloss.type == LineType.REFERENCE_SIGN:
-            return QColor(0, 0, 128, 255)
+            return settings_get(SettingsKey.REFERENCE_SIGN_FILL)
         else:
-            return QColor(0, 128, 0, 255)
+            return settings_get(SettingsKey.GLOSS_FILL)
 
     def get_gloss_text_color(gloss: GlossLine):
         if gloss.type == LineType.REFERENCE_SIGN:
-            return QColor(20, 20, 255, 128)
+            col = settings_get(SettingsKey.REFERENCE_SIGN_TEXT)
+            col.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
+            return col
         else:
-            return QColor(20, 255, 20, 128)
+            col = settings_get(SettingsKey.GLOSS_TEXT)
+            col.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
+            return col
 
     objects = []
 
@@ -53,23 +58,22 @@ def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_tex
         else:
             LoggerSingleton().logger.log_warning(f"Could not get rectangle of {gloss_line}.")
 
-    red = QColor(128, 0, 0, 255)
-    white = QColor(255, 255, 255, 128)
-
     # Individual word BBs and word annotations
     for line in page.get_main_text_lines():
         for word_text, word_coordinate in zip(line.words, line.word_bounding_boxes):
             rectangle = shrink_rectangle(word_coordinate)
             if rectangle is not None:
-                polygon_item = PolygonItem(rectangle, red, filled=False)
+                polygon_item = PolygonItem(rectangle, settings_get(SettingsKey.MAIN_WORD_FILL), filled=False)
                 objects.append(polygon_item)
 
                 if display_text:
                     fontsize = get_optimal_fontsize(rectangle, word_text)
+                    color = settings_get(SettingsKey.MAIN_WORD_TEXT)
+                    color.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
                     word_item = TextItem(
                         text=word_text,
                         position=get_optimal_position(rectangle, fontsize),
-                        color=white,
+                        color=color,
                         fontsize=fontsize
                     )
                     objects.append(word_item)
@@ -89,16 +93,19 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
     """
     def get_gloss_color(gloss: GlossLine):
         if gloss.type == LineType.REFERENCE_SIGN:
-            return QColor(0, 0, 255, 48)
+            col = settings_get(SettingsKey.REFERENCE_SIGN_FILL)
+            col.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
+            return col
         else:
-            return QColor(0, 255, 0, 48)
+            col = settings_get(SettingsKey.GLOSS_FILL)
+            col.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
+            return col
 
     page_chains = connector.connection_chains
     objects = []
 
     for chain in page_chains:
         for connection in chain:
-            red = QColor(255, 0, 0, 48)
             # starting point from a connection must always be a gloss line
             assert (isinstance(connection.start, GlossLine))
             # end point of a connection can either be a word or a gloss line
@@ -118,14 +125,17 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
             else:
                 LoggerSingleton().logger.log_warning(f"Could not get rectangle of {connection.start}.")
 
-
-            start_center = np.mean(connection.start.baseline, axis=0)
+            start_center = np.mean(rectangle, axis=0)
 
             # draw end gloss/word
             if isinstance(connection.end, Word):
                 rectangle = shrink_rectangle(connection.end.bounding_box)
                 if rectangle is not None:
-                    item_bounding_box = PolygonItem(rectangle, red)
+                    color = settings_get(SettingsKey.MAIN_WORD_FILL)
+                    color.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
+
+                    item_bounding_box = PolygonItem(rectangle, color)
+                    objects.append(item_bounding_box)
                     objects.append(item_bounding_box)
                 end_center = np.mean(connection.end.bounding_box, axis=0)
             else:  # connection.end must be gloss in this case
@@ -138,9 +148,9 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
                     )
                     objects.append(item_bounding_box)
 
-                end_center = np.mean(connection.end.baseline, axis=0)
+                end_center = np.mean(rectangle, axis=0)
 
-            arrow_item = ArrowItem(start_center, end_center, QColor(0, 0, 0))
+            arrow_item = ArrowItem(start_center, end_center, settings_get(SettingsKey.ARROW_FILL))
             objects.append(arrow_item)
 
     return objects
@@ -150,10 +160,10 @@ def construct_currently_selected_object_graphic(object: GlossLine | Word) -> Gra
     def get_object_color(object: GlossLine | Word):
         if isinstance(object, GlossLine):
             if object.type == LineType.REFERENCE_SIGN:
-                return QColor(0, 0, 80, 80)
-            return QColor(0, 80, 0, 80)
+                return settings_get(SettingsKey.REFERENCE_SIGN_FILL)
+            return settings_get(SettingsKey.GLOSS_FILL)
         else:  # Word
-            return QColor(80, 0, 0, 80)
+            return settings_get(SettingsKey.MAIN_WORD_FILL)
 
     if isinstance(object, GlossLine):
         coords = shrink_rectangle(polygon_to_rectangle(object.coordinates.exterior.coords))
@@ -162,6 +172,7 @@ def construct_currently_selected_object_graphic(object: GlossLine | Word) -> Gra
 
     if coords is not None:
         color = get_object_color(object)
+        color.setAlpha(int(settings_get(SettingsKey.SELECTION_TRANSPARENCY)))
         polygon_item = PolygonItem(coords, color, filled=True)
         return polygon_item
     else:

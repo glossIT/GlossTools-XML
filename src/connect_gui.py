@@ -4,7 +4,7 @@ import shutil
 from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
-from PySide6.QtCore import Signal, QCoreApplication, QSettings, QSizeF, QThread, Slot, \
+from PySide6.QtCore import Signal, QCoreApplication, QSizeF, QThread, Slot, \
     qInstallMessageHandler, QtMsgType
 import sys
 from typing import Callable
@@ -13,7 +13,7 @@ import uuid
 import zlib
 
 from glossit_connect_glosses import GlossOnPageConnector
-from xml_extraction import METSBook
+from gui_files.dialog_change_settings import ChangeSettingsDialog
 from gui_files.dialog_save_on_exit import DialogSaveOnExit
 from gui_files.dialog_select_files import OpenProjectFileSelectDialog
 from gui_files.dialog_loading import LoadingDialog, LoadingDialogContent
@@ -21,7 +21,9 @@ from gui_files.gloss_connector_manager import ObservableGlossOnPageConnector
 from gui_files.logger import LoggerSingleton
 from gui_files.main_gloss_connector import Ui_MainWindow
 from gui_files.program_state import ProgramStateSingleton
+from gui_files.settings import SettingsKey, settings_get, settings_set, settings_revert_to_default_values
 from gui_files.spatial_database import SpatialDatabase
+from xml_extraction import METSBook
 
 
 # TODO
@@ -118,6 +120,7 @@ class MainWindow(QMainWindow):
         _export_tei: Asks the user to select a file to which the TEI including connection data is exported.
         _export_mets: Asks the user to select a folder to which the METS file, the PageXML data and manuscript page
                       images are exported.
+        _open_settings: Opens the settings dialog window and applies them to the program.
         _close_thread (uuid.UUID): Closes the thread with the passed ID and removes it from the list threads.
         _enable_buttons: Enables all buttons that can only be accessed after a project is loaded or created.
         _show_toast (str, str, ToastPreset): Forwards a show_toast signal to the UI on the main thread.
@@ -126,6 +129,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+
         self.show_error_dialog.connect(self._show_error_dialog)
 
         program_state = ProgramStateSingleton().program_state
@@ -142,10 +146,20 @@ class MainWindow(QMainWindow):
         # Connect to a bound method of this QObject to show toasts
         program_state.show_toast.connect(self._show_toast)
 
+        # Check if all settings are set, otherwise reset them to default values
+        for key in SettingsKey:
+            if settings_get(key) is None:
+                settings_revert_to_default_values()
+                LoggerSingleton().logger.log_warning(f"Invalid setting value '{settings_get(key)}' for key '{key}'. "
+                                                     f"Revert all settings to default.")
+                break
+
         # Load window geometry
-        self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
-        self.restoreGeometry(self.settings.value("windowGeometry"))
-        self.restoreState(self.settings.value("windowState"))
+        self.restoreGeometry(settings_get(SettingsKey.GEOMETRY))
+        self.restoreState(settings_get(SettingsKey.WINDOW_STATE))
+
+        # Set debug logging
+        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
 
         # connect buttons to actions
         self.ui.actionNewProject.triggered.connect(self._new_project)
@@ -165,6 +179,12 @@ class MainWindow(QMainWindow):
 
         self.ui.actionExportTei.triggered.connect(self._export_tei)
         self.ui.actionExportTei.setShortcut(QKeySequence("Ctrl+E"))
+
+        self.ui.actionExportMets.triggered.connect(self._export_mets)
+
+        self.ui.actionExportView.triggered.connect(self._export_view)
+
+        self.ui.actionOpenSettings.triggered.connect(self._open_settings)
 
         self.threads = dict()
 
@@ -224,8 +244,8 @@ class MainWindow(QMainWindow):
                 self._save_project(exit_after=True)
                 return
 
-        self.settings.setValue("windowGeometry", self.saveGeometry())
-        self.settings.setValue("windowState", self.saveState())
+        settings_set(SettingsKey.GEOMETRY, self.saveGeometry())
+        settings_set(SettingsKey.WINDOW_STATE, self.saveState())
         event.accept()
 
     def thread_function(
@@ -716,6 +736,23 @@ class MainWindow(QMainWindow):
                     return
 
             self.thread_function(on_export, loading_window_content=loading_window_content)
+
+    def _open_settings(self):
+        """
+        Opens the settings dialog window and applies them to the program.
+        """
+        LoggerSingleton().logger.log_info(f"MainWindow._open_settings()")
+
+        change_settings_dialog = ChangeSettingsDialog()
+        settings_dict = change_settings_dialog.exec()
+        if settings_dict is not None:
+            for key, value in settings_dict.items():
+                settings_set(key, value)
+
+        program_state = ProgramStateSingleton().program_state
+        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
+        if program_state.draw_image is not None:
+            program_state.construct_current_page_graphics()
 
     @Slot(object)
     def _close_thread(self, thread_id: uuid.UUID):
