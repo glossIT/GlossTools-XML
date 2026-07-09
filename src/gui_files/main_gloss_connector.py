@@ -23,7 +23,7 @@ from glossit_dataclasses import GlossLine, LineType
 from .graphics import construct_connection_graphics_from_connector, \
     construct_currently_selected_object_graphic
 from .logger import LoggerSingleton
-from .widgets_modified import ClickableLabel, FocusableLineEdit, ToolTipMenu
+from .widgets import ClickableLabel, FocusableLineEdit, ToolTipMenu
 from .program_state import ProgramStateSingleton
 from .widget_imagegraphicsview import ImageGraphicsView
 
@@ -252,7 +252,7 @@ class Ui_MainWindow(object):
         dock.setObjectName("connectionChainsDock")
         dock.setWidget(container)
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        self.main_window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
         self.imageGraphicsView = ImageGraphicsView(self)
         self.imageGraphicsView.setObjectName(u"imageGraphicsView")

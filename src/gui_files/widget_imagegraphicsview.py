@@ -6,8 +6,6 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 from glossit_connect_glosses import ConnectedPair
 from glossit_dataclasses import GlossLine
 
-from .cyclic_access import CyclicList
-from .graphics import construct_connection_graphics_from_connector
 from .logger import LoggerSingleton
 from .program_state import ProgramStateSingleton
 
