@@ -85,7 +85,7 @@ class ThreadWrapper(QThread):
         except Exception as e:
             LoggerSingleton().logger.log_exception(e)
         finally:
-            # Always emit, even on exception! Otherwise the modal LoadingDialog is never closed
+            # Always emit, even on exception! Otherwise, the modal LoadingDialog is never closed
             # and the GUI is stuck behind an unclosable dialog
             self.finished.emit(self.thread_id)
 
@@ -96,7 +96,7 @@ class MainWindow(QMainWindow):
 
     Attributes:
         show_error_dialog (Signal[str, str]): This signal is emitted when an error message dialog should be displayed.
-                                    First string is the title, second string is the error message.
+                                              First string is the title, second string is the error message.
         ui (Ui_MainWindow): The user interface associated with the main window.
         settings (QSettings): Stores settings such as window geometry to restore after restarting the software.
         threads (list[ThreadWrapper]): A list of threads that are currently being executed.
@@ -258,7 +258,7 @@ class MainWindow(QMainWindow):
         Executes the function in a separate thread and displays a LoadingDialog while not finished.
 
         :param function_to_run: Function that should be executed.
-        :param tqdm_progress: Progress bar that is displayed.
+        :param loading_window_content: Containing information about what should be shown in the loading dialog.
         :param exit_after: Closes the main window after the thread has finished.
         """
         if loading_window_content is None:
@@ -758,7 +758,7 @@ class MainWindow(QMainWindow):
     def _close_thread(self, thread_id: uuid.UUID):
         """
         Closes the loading dialog belonging to the finished thread and removes the thread from the
-        dictionary threads. Invoked on the main threadd via the ThreadWrapper.finished signal.
+        dictionary threads. Invoked on the main thread via the ThreadWrapper.finished signal.
         :param thread_id: ID of the thread to be closed.
         """
         LoggerSingleton().logger.log_info(f"MainWindow._close_thread(thread_id={thread_id})")

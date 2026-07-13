@@ -143,7 +143,7 @@ class ChangeSettingsDialog(QDialog):
         if isinstance(self._widgets[key], QCheckBox):  # checkboxes
             return self._widgets[key].isChecked()
         elif isinstance(self._widgets[key], (QSlider, FloatSlider, LabeledSlider)):  # sliders
-            return self.widgets[key].value()
+            return self._widgets[key].value()
         elif isinstance(self._widgets[key], ColorButton):
             return self._widgets[key].color()
         else:
