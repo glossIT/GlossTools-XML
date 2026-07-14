@@ -1,6 +1,6 @@
 from PySide6.QtGui import QIcon, Qt
 from PySide6.QtWidgets import QDialog, QCheckBox, QHBoxLayout, QVBoxLayout, QPushButton, \
-    QLabel, QSlider, QApplication, QLayout
+    QLabel, QSlider, QApplication, QLayout, QTabWidget, QWidget
 
 from gui_files.logger import LoggerSingleton
 from gui_files.settings import SettingsKey, settings_get, settings_get_default_values
@@ -49,28 +49,56 @@ class ChangeSettingsDialog(QDialog):
         """
         layout = QVBoxLayout(self)
 
-        # Debug mode
-        self._widgets[SettingsKey.DEBUG_ENABLED] = QCheckBox("Enable debug logging")
-        layout.addWidget(self._widgets[SettingsKey.DEBUG_ENABLED])
+        # Create tab widget
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
+
+        # --- IMAGE TAB ---
+        image_tab = QWidget()
+        image_layout = QVBoxLayout(image_tab)
 
         # Image display sliders
-        self._widgets[SettingsKey.IMAGE_BRIGHTNESS] = self._create_slider("Image Brightness", layout, is_normed=True)
-        self._widgets[SettingsKey.IMAGE_CONTRAST] = self._create_slider("Image Contrast", layout, is_normed=True)
-        self._widgets[SettingsKey.IMAGE_SATURATION] = self._create_slider("Image Saturation", layout, is_normed=True)
+        self._widgets[SettingsKey.IMAGE_BRIGHTNESS] = self._create_slider(
+            "Image Brightness", image_layout, is_normed=True
+        )
+        self._widgets[SettingsKey.IMAGE_CONTRAST] = self._create_slider(
+            "Image Contrast", image_layout, is_normed=True
+        )
+        self._widgets[SettingsKey.IMAGE_SATURATION] = self._create_slider(
+            "Image Saturation", image_layout, is_normed=True
+        )
 
         # Transparency sliders
-        self._widgets[SettingsKey.FILL_TRANSPARENCY] = self._create_slider("Fill Opacity", layout)
-        self._widgets[SettingsKey.TEXT_TRANSPARENCY] = self._create_slider("Text Opacity", layout)
-        self._widgets[SettingsKey.SELECTION_TRANSPARENCY] = self._create_slider("Selection Opacity", layout)
+        self._widgets[SettingsKey.FILL_TRANSPARENCY] = self._create_slider("Fill Opacity", image_layout)
+        self._widgets[SettingsKey.TEXT_TRANSPARENCY] = self._create_slider("Text Opacity", image_layout)
+        self._widgets[SettingsKey.SELECTION_TRANSPARENCY] = self._create_slider("Selection Opacity", image_layout)
+
+        self.tabs.addTab(image_tab, "Image")
+
+        # --- COLOR TAB ---
+        color_tab = QWidget()
+        color_layout = QVBoxLayout(color_tab)
 
         # Color pickers
-        self._widgets[SettingsKey.ARROW_FILL] = self._create_color_button("Arrow Fill", layout)
-        self._widgets[SettingsKey.MAIN_WORD_FILL] = self._create_color_button("Main Word Fill", layout)
-        self._widgets[SettingsKey.MAIN_WORD_TEXT] = self._create_color_button("Main Word Text", layout)
-        self._widgets[SettingsKey.REFERENCE_SIGN_FILL] = self._create_color_button("Reference Sign Fill", layout)
-        self._widgets[SettingsKey.REFERENCE_SIGN_TEXT] = self._create_color_button("Reference Sign Text", layout)
-        self._widgets[SettingsKey.GLOSS_FILL] = self._create_color_button("Gloss Fill", layout)
-        self._widgets[SettingsKey.GLOSS_TEXT] = self._create_color_button("Gloss Text", layout)
+        self._widgets[SettingsKey.ARROW_FILL] = self._create_color_button("Arrow Fill", color_layout)
+        self._widgets[SettingsKey.MAIN_WORD_FILL] = self._create_color_button("Main Word Fill", color_layout)
+        self._widgets[SettingsKey.MAIN_WORD_TEXT] = self._create_color_button("Main Word Text", color_layout)
+        self._widgets[SettingsKey.REFERENCE_SIGN_FILL] = self._create_color_button("Reference Sign Fill", color_layout)
+        self._widgets[SettingsKey.REFERENCE_SIGN_TEXT] = self._create_color_button("Reference Sign Text", color_layout)
+        self._widgets[SettingsKey.GLOSS_FILL] = self._create_color_button("Gloss Fill", color_layout)
+        self._widgets[SettingsKey.GLOSS_TEXT] = self._create_color_button("Gloss Text", color_layout)
+
+        self.tabs.addTab(color_tab, "Color")
+
+        # --- ADVANCED TAB ---
+        advanced_tab = QWidget()
+        advanced_layout = QVBoxLayout(advanced_tab)
+
+        # Debug mode
+        self._widgets[SettingsKey.DEBUG_ENABLED] = QCheckBox("Enable debug logging")
+        advanced_layout.addWidget(self._widgets[SettingsKey.DEBUG_ENABLED])
+
+        self.tabs.addTab(advanced_tab, "Advanced")
 
         # Save and Cancel buttons
         btn_layout = QHBoxLayout()
