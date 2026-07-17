@@ -550,7 +550,7 @@ class _ProgramState(QObject):
             self._schedule_emit("has_unsaved_changes")
 
     @property
-    def mets_book(self):
+    def mets_book(self) -> METSBook:
         return self._mets_book
 
     @mets_book.setter
@@ -561,7 +561,7 @@ class _ProgramState(QObject):
             self._schedule_emit("mets_book")
 
     @property
-    def gloss_connection_handler(self):
+    def gloss_connection_handler(self) -> GlossConnectionHandler:
         return self._gloss_connection_handler
 
     @gloss_connection_handler.setter
@@ -584,7 +584,7 @@ class _ProgramState(QObject):
             self._schedule_emit(f"currently_selected_object ({value})")
 
     @property
-    def draw_image(self):
+    def draw_image(self) -> Image.Image:
         return self._draw_image
 
     @draw_image.setter
@@ -594,7 +594,7 @@ class _ProgramState(QObject):
             self._schedule_emit("draw_image")
 
     @property
-    def draw_word_gloss_objects(self):
+    def draw_word_gloss_objects(self) -> list[GraphicsItem]:
         return self._draw_word_gloss_objects
 
     @draw_word_gloss_objects.setter
@@ -604,7 +604,7 @@ class _ProgramState(QObject):
             self._schedule_emit("draw_word_gloss_objects")
 
     @property
-    def draw_connection_objects(self):
+    def draw_connection_objects(self) -> list[GraphicsItem]:
         return self._draw_connection_objects
 
     @draw_connection_objects.setter
@@ -614,7 +614,7 @@ class _ProgramState(QObject):
             self._schedule_emit("draw_connection_objects")
 
     @property
-    def spatial_database(self):
+    def spatial_database(self) -> SpatialDatabase:
         return self._spatial_database
 
     @spatial_database.setter
@@ -624,17 +624,17 @@ class _ProgramState(QObject):
             self._schedule_emit("spatial_database")
 
     @property
-    def current_page_index(self):
+    def current_page_index(self) -> int | None:
         if self._page_counter is not None:
             return self._page_counter.current_index
 
     @property
-    def number_of_pages(self):
+    def number_of_pages(self) -> int | None:
         if self._page_counter is not None:
             return self._page_counter.number_of_indices
 
     @property
-    def page_counter_text(self):
+    def page_counter_text(self) -> str:
         return str(self._page_counter) if self._page_counter is not None else ""
 
 

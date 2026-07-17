@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.covariance import shrunk_covariance
 
 
 def polygon_to_rectangle(polygon: list) -> list:
@@ -132,6 +133,35 @@ def shrink_rectangle(rectangle: tuple[tuple[int, int]], shrink_factor: float = 0
             x_max=int(x_center + shrink_factor * x_length),
             y_max=int(y_center + shrink_factor * y_length)
         )
+    except Exception:
+        return None
+
+
+def get_display_rectangle(rectangle: tuple[tuple[int, int]]):
+    """
+    Prepares the rectangle for display, i.e., first shrinking it and then making sure it has at least a minimal size.
+
+    :param rectangle: Rectangle to shrink.
+    :return: The prepared rectangle (or None in case a valid rectangle could not be constructed).
+    """
+    try:
+        shrunk_rectangle = shrink_rectangle(rectangle)
+        x_min, y_min, x_max, y_max = rectangle_transform(shrunk_rectangle)
+
+        width = x_max - x_min
+        height = y_max - y_min
+
+        if width < 10 or height < 10:
+            x_center = (x_max + x_min) / 2
+            y_center = (y_max + y_min) / 2
+            return rectangle_untransform(
+                x_min=int(x_center - 5),
+                y_min=int(y_center - 5),
+                x_max=int(x_center + 5),
+                y_max=int(y_center + 5)
+            )
+        else:
+            return shrunk_rectangle
     except Exception:
         return None
 

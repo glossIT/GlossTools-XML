@@ -1,7 +1,6 @@
 import numpy as np
-from PySide6.QtGui import QColor
 
-from coordinate_manipulation import get_optimal_fontsize, get_optimal_position, shrink_rectangle
+from coordinate_manipulation import get_optimal_fontsize, get_optimal_position, get_display_rectangle
 from glossit_connect_glosses import ConnectedPair, Word
 from glossit_dataclasses import GlossLine, LineType
 from xml_extraction import METSPage, polygon_to_rectangle
@@ -41,7 +40,7 @@ def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_tex
 
     # Gloss lines
     for gloss_line in page.get_gloss_lines():
-        gloss_coordinate = shrink_rectangle(polygon_to_rectangle(gloss_line.coordinates.exterior.coords))
+        gloss_coordinate = get_display_rectangle(polygon_to_rectangle(gloss_line.coordinates.exterior.coords))
         if gloss_coordinate is not None:
             polygon_item = PolygonItem(gloss_coordinate, get_gloss_color(gloss_line), filled=False)
             objects.append(polygon_item)
@@ -61,12 +60,14 @@ def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_tex
     # Individual word BBs and word annotations
     for line in page.get_main_text_lines():
         for word_text, word_coordinate in zip(line.words, line.word_bounding_boxes):
-            rectangle = shrink_rectangle(word_coordinate)
+            rectangle = get_display_rectangle(word_coordinate)
             if rectangle is not None:
                 polygon_item = PolygonItem(rectangle, settings_get(SettingsKey.MAIN_WORD_FILL), filled=False)
                 objects.append(polygon_item)
 
                 if display_text:
+                    if line.id == "eSc_line_e43d95bd":
+                        print(line, "\n", word_text, "\n", word_coordinate, "\n", rectangle, "\n", line.character_bounding_boxes[-1], rectangle[1][0]-rectangle[0][0], ",", rectangle[2][1]-rectangle[0][1], "\n")
                     fontsize = get_optimal_fontsize(rectangle, word_text)
                     color = settings_get(SettingsKey.MAIN_WORD_TEXT)
                     color.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
@@ -115,7 +116,7 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
 
             # draw start gloss
             color = get_gloss_color(connection.start)
-            rectangle = shrink_rectangle(polygon_to_rectangle(connection.start.coordinates.exterior.coords))
+            rectangle = get_display_rectangle(polygon_to_rectangle(connection.start.coordinates.exterior.coords))
             if rectangle is not None:
                 item_bounding_box = PolygonItem(
                     rectangle,
@@ -129,7 +130,7 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
 
             # draw end gloss/word
             if isinstance(connection.end, Word):
-                rectangle = shrink_rectangle(connection.end.bounding_box)
+                rectangle = get_display_rectangle(connection.end.bounding_box)
                 if rectangle is not None:
                     color = settings_get(SettingsKey.MAIN_WORD_FILL)
                     color.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
@@ -140,7 +141,7 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
                 end_center = np.mean(connection.end.bounding_box, axis=0)
             else:  # connection.end must be gloss in this case
                 color = get_gloss_color(connection.end)
-                rectangle = shrink_rectangle(polygon_to_rectangle(connection.end.coordinates.exterior.coords))
+                rectangle = get_display_rectangle(polygon_to_rectangle(connection.end.coordinates.exterior.coords))
                 if rectangle is not None:
                     item_bounding_box = PolygonItem(
                         rectangle,
@@ -166,9 +167,9 @@ def construct_currently_selected_object_graphic(object: GlossLine | Word) -> Gra
             return settings_get(SettingsKey.MAIN_WORD_FILL)
 
     if isinstance(object, GlossLine):
-        coords = shrink_rectangle(polygon_to_rectangle(object.coordinates.exterior.coords))
+        coords = get_display_rectangle(polygon_to_rectangle(object.coordinates.exterior.coords))
     else:
-        coords = shrink_rectangle(object.line.word_bounding_boxes[object.word_idx])
+        coords = get_display_rectangle(object.line.word_bounding_boxes[object.word_idx])
 
     if coords is not None:
         color = get_object_color(object)

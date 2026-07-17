@@ -348,7 +348,6 @@ class METSPage:
         is_double_page (bool): True indicates that the manuscript book contains only double pages,
                                i.e., one image contains two pages.
         ocr_model_path (str): Path to the Kraken OCR model.
-        ocr_model (models.TorchSeqRecognizer): The loaded OCR model from ocr_model_path.
 
     Private Attributes:
         _ocr_predictions (OCRPredictionWrapper): The OCR prediction wrapper for the page.
