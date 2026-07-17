@@ -337,6 +337,7 @@ class Ui_MainWindow(object):
                 f"Ui_MainWindow.setupUi.on_selection_changed() ("
                 f"col_0 = '{curr_item.text(0) if curr_item is not None else None}', "
                 f"col_1 = '{curr_item.text(1) if curr_item is not None else None}'"
+                f"col_2 = '{curr_item.text(2) if curr_item is not None else None}'"
                 f")"
             )
 
@@ -368,6 +369,20 @@ class Ui_MainWindow(object):
                 rectangle = view_obj.get_bounding_box()
                 rectangle = QRectF(*rectangle_xywh(rectangle))
                 self.imageGraphicsView.centerOn(rectangle.center())
+
+            # Update check box values for visibility!
+            def on_update_visibility():
+                top_level_items = [
+                    self.chainManipulation.treeDisplayChains.topLevelItem(i)
+                    for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
+                ]
+                for idx, item in enumerate(top_level_items):
+                    for connection in program_state.gloss_connection_handler[
+                        program_state.current_page_index
+                    ].connection_chains[idx]:
+                        connection.is_visible = item.checkState(1) == Qt.CheckState.Checked
+                program_state.update_connection_objects()
+            self.main_window.thread_function(on_update_visibility)
 
         self.chainManipulation.treeDisplayChains.clicked.connect(on_selection_changed)
 
@@ -648,7 +663,8 @@ class Ui_MainWindow(object):
         for idx, chain in enumerate(chains):
             item = QTreeWidgetItem(self.chainManipulation.treeDisplayChains)
             item.setText(0, f"Chain {idx+1}")
-            item.setCheckState(1, Qt.CheckState.Checked)
+
+            visibility = False  # visibility should be if at least one connection of the chain is visible!
             for connection in chain:
                 subitem = QTreeWidgetItem(item)
                 subitem.setText(
@@ -656,4 +672,6 @@ class Ui_MainWindow(object):
                     f"{connection.start.type} '{connection.start.text}' "
                     f"→ {connection.end.type} '{connection.end.text}'"
                 )
+                visibility = visibility or connection.is_visible
+            item.setCheckState(1, Qt.CheckState.Checked if visibility else Qt.CheckState.Unchecked)
         self.chainManipulation.treeDisplayChains.expandAll()

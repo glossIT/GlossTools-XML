@@ -105,52 +105,53 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
 
     for chain in page_chains:
         for connection in chain:
-            # starting point from a connection must always be a gloss line
-            assert (isinstance(connection.start, GlossLine))
-            # end point of a connection can either be a word or a gloss line
-            assert (isinstance(connection.end, (Word, GlossLine)))
-            # circular relations are not allowed
-            # assert (isinstance(connection.end, (Word, GlossLine)))
+            if connection.is_visible:  # only draw visible connections
+                # starting point from a connection must always be a gloss line
+                assert (isinstance(connection.start, GlossLine))
+                # end point of a connection can either be a word or a gloss line
+                assert (isinstance(connection.end, (Word, GlossLine)))
+                # circular relations are not allowed
+                # assert (isinstance(connection.end, (Word, GlossLine)))
 
-            # draw start gloss
-            color = get_gloss_color(connection.start)
-            rectangle = get_display_rectangle(polygon_to_rectangle(connection.start.coordinates.exterior.coords))
-            if rectangle is not None:
-                item_bounding_box = PolygonItem(
-                    rectangle,
-                    color
-                )
-                objects.append(item_bounding_box)
-            else:
-                LoggerSingleton().logger.log_warning(f"Could not get rectangle of {connection.start}.")
-
-            start_center = np.mean(rectangle, axis=0)
-
-            # draw end gloss/word
-            if isinstance(connection.end, Word):
-                rectangle = get_display_rectangle(connection.end.bounding_box)
-                if rectangle is not None:
-                    color = settings_get(SettingsKey.MAIN_WORD_FILL)
-                    color.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
-
-                    item_bounding_box = PolygonItem(rectangle, color)
-                    objects.append(item_bounding_box)
-                    objects.append(item_bounding_box)
-                end_center = np.mean(connection.end.bounding_box, axis=0)
-            else:  # connection.end must be gloss in this case
-                color = get_gloss_color(connection.end)
-                rectangle = get_display_rectangle(polygon_to_rectangle(connection.end.coordinates.exterior.coords))
+                # draw start gloss
+                color = get_gloss_color(connection.start)
+                rectangle = get_display_rectangle(polygon_to_rectangle(connection.start.coordinates.exterior.coords))
                 if rectangle is not None:
                     item_bounding_box = PolygonItem(
                         rectangle,
                         color
                     )
                     objects.append(item_bounding_box)
+                else:
+                    LoggerSingleton().logger.log_warning(f"Could not get rectangle of {connection.start}.")
 
-                end_center = np.mean(rectangle, axis=0)
+                start_center = np.mean(rectangle, axis=0)
 
-            arrow_item = ArrowItem(start_center, end_center, settings_get(SettingsKey.ARROW_FILL))
-            objects.append(arrow_item)
+                # draw end gloss/word
+                if isinstance(connection.end, Word):
+                    rectangle = get_display_rectangle(connection.end.bounding_box)
+                    if rectangle is not None:
+                        color = settings_get(SettingsKey.MAIN_WORD_FILL)
+                        color.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
+
+                        item_bounding_box = PolygonItem(rectangle, color)
+                        objects.append(item_bounding_box)
+                        objects.append(item_bounding_box)
+                    end_center = np.mean(connection.end.bounding_box, axis=0)
+                else:  # connection.end must be gloss in this case
+                    color = get_gloss_color(connection.end)
+                    rectangle = get_display_rectangle(polygon_to_rectangle(connection.end.coordinates.exterior.coords))
+                    if rectangle is not None:
+                        item_bounding_box = PolygonItem(
+                            rectangle,
+                            color
+                        )
+                        objects.append(item_bounding_box)
+
+                    end_center = np.mean(rectangle, axis=0)
+
+                arrow_item = ArrowItem(start_center, end_center, settings_get(SettingsKey.ARROW_FILL))
+                objects.append(arrow_item)
 
     return objects
 

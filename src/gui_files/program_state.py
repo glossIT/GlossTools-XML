@@ -61,6 +61,7 @@ class _ProgramState(QObject):
         go_to_page (int): Sets the page counter object to the indicated page index. Call from separate thread!
         update_display_text (bool): Indicates whether the text of gloss/word objects should be drawn and redraws
                                     the page if needed. Call from separate thread!
+        update_connection_objects: Updates the connection graphics objects. Call from separate thread!
         construct_current_page_graphics: Updates the graphics for the currently selected page for display.
                                          Call from separate thread!
         page_index_is_valid (int): Check if the given page index is valid.
@@ -291,6 +292,16 @@ class _ProgramState(QObject):
             self._schedule_emit("display_text")
             self.construct_current_page_graphics()
 
+    def update_connection_objects(self):
+        """
+        Updates the connection objects. Call from separate thread!
+        """
+        LoggerSingleton().logger.log_info(f"_ProgramState.update_connection_objects()")
+        self._draw_connection_objects = construct_connection_graphics_from_connector(
+            self.gloss_connection_handler[self.current_page_index]
+        )
+        self._schedule_emit("update_connection_objects")
+
     def construct_current_page_graphics(self):
         """
         Updates the graphics for the currently selected page for display. Call from separate thread!
@@ -455,9 +466,7 @@ class _ProgramState(QObject):
             )
         )
 
-        self._draw_connection_objects = construct_connection_graphics_from_connector(
-            self.gloss_connection_handler[self.current_page_index]
-        )
+        self.update_connection_objects()
 
         self._schedule_emit("select_or_connect_on_coordinate")
 
@@ -487,9 +496,7 @@ class _ProgramState(QObject):
             )
         )
 
-        self._draw_connection_objects = construct_connection_graphics_from_connector(
-            self.gloss_connection_handler[self.current_page_index]
-        )
+        self.update_connection_objects()
         self._schedule_emit("remove_connection")
 
     def clear_metsbook_cache(self):
@@ -568,9 +575,7 @@ class _ProgramState(QObject):
     def gloss_connection_handler(self, value):
         if self._gloss_connection_handler != value:
             self._gloss_connection_handler = value
-            self._draw_connection_objects = construct_connection_graphics_from_connector(
-                self._gloss_connection_handler[self._page_counter.current_index]
-            )
+            self.update_connection_objects()
             self._schedule_emit("gloss_connection_handler")
 
     @property
