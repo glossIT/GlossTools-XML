@@ -288,6 +288,7 @@ class Ui_MainWindow(object):
                 f"Ui_MainWindow.setupUi.update_image(...)"
             )
             self.imageGraphicsView.scene.clear()
+            
             if program_state.draw_image is not None:
                 self.imageGraphicsView.load_image_from_pil(
                     program_state.draw_image
@@ -328,6 +329,18 @@ class Ui_MainWindow(object):
                             if program_state.currently_selected_object.id in (connection.start.id, connection.end.id):
                                 self.chainManipulation.treeDisplayChains.topLevelItem(idx).setSelected(True)
         program_state.data_changed.connect(update_tree)
+
+        def update_visibility():
+            top_level_items = [
+                self.chainManipulation.treeDisplayChains.topLevelItem(i)
+                for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
+            ]
+            for idx, item in enumerate(top_level_items):
+                for connection in program_state.gloss_connection_handler[
+                    program_state.current_page_index
+                ].connection_chains[idx]:
+                    connection.is_visible = item.checkState(1) == Qt.CheckState.Checked
+            program_state.update_connection_objects()
 
         # Connect the selection of an entry in the tree widget with a toggle of the selection button
         def on_selection_changed():
@@ -371,18 +384,7 @@ class Ui_MainWindow(object):
                 self.imageGraphicsView.centerOn(rectangle.center())
 
             # Update check box values for visibility!
-            def on_update_visibility():
-                top_level_items = [
-                    self.chainManipulation.treeDisplayChains.topLevelItem(i)
-                    for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
-                ]
-                for idx, item in enumerate(top_level_items):
-                    for connection in program_state.gloss_connection_handler[
-                        program_state.current_page_index
-                    ].connection_chains[idx]:
-                        connection.is_visible = item.checkState(1) == Qt.CheckState.Checked
-                program_state.update_connection_objects()
-            self.main_window.thread_function(on_update_visibility)
+            self.main_window.thread_function(update_visibility)
 
         self.chainManipulation.treeDisplayChains.clicked.connect(on_selection_changed)
 

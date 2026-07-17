@@ -104,8 +104,8 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
     objects = []
 
     for chain in page_chains:
-        for connection in chain:
-            if connection.is_visible:  # only draw visible connections
+        if True in [connection.is_visible for connection in chain]:  # draw chain if at least one connection is visible
+            for connection in chain:
                 # starting point from a connection must always be a gloss line
                 assert (isinstance(connection.start, GlossLine))
                 # end point of a connection can either be a word or a gloss line
