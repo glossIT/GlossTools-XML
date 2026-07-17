@@ -769,7 +769,6 @@ class MainWindow(QMainWindow):
             # Now, wait for the OS thread to fully terminate before dropping the last reference.
             entry["thread"].wait()
 
-
     def _enable_buttons(self):
         """
         Enables all buttons that can only be accessed after a project is loaded or created.

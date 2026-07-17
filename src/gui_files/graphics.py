@@ -66,8 +66,6 @@ def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_tex
                 objects.append(polygon_item)
 
                 if display_text:
-                    if line.id == "eSc_line_e43d95bd":
-                        print(line, "\n", word_text, "\n", word_coordinate, "\n", rectangle, "\n", line.character_bounding_boxes[-1], rectangle[1][0]-rectangle[0][0], ",", rectangle[2][1]-rectangle[0][1], "\n")
                     fontsize = get_optimal_fontsize(rectangle, word_text)
                     color = settings_get(SettingsKey.MAIN_WORD_TEXT)
                     color.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
