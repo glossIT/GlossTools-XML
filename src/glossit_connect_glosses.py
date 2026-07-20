@@ -264,15 +264,18 @@ class GlossOnPageConnector:
         Gets all gloss lines on the page that are not featured in a connection.
         :return: Unconnected gloss lines.
         """
-        all_gloss_lines = set([line.id for line in self._page.get_gloss_lines()])
+        gloss_lines = self._page.get_gloss_lines()
+        coordinate_dict = {line.id: line.coordinates.exterior.coords[0] for line in gloss_lines}
+        all_gloss_lines = set([line.id for line in gloss_lines])
 
         connected_objects = set()
         for connection in self._connections:
             connected_objects.add(connection.start.id)
             connected_objects.add(connection.end.id)
 
-        unconnected_gloss_lines = all_gloss_lines - connected_objects
-        return list(unconnected_gloss_lines)
+        unconnected_gloss_lines = list(all_gloss_lines - connected_objects)
+        unconnected_gloss_lines.sort(key=lambda gloss_id: (coordinate_dict[gloss_id][1], coordinate_dict[gloss_id][0]))
+        return unconnected_gloss_lines
 
     def check_if_connection_results_in_circular_relation(self, connection: ConnectedPair) -> bool:
         """

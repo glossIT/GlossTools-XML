@@ -598,6 +598,13 @@ class Ui_MainWindow(object):
                             rectangle = current_object.get_bounding_box()
                             rectangle = QRectF(*rectangle_xywh(rectangle))
                             self.imageGraphicsView.centerOn(rectangle.center())
+                            # Update label text to show which gloss the user currently is on
+                            self.labelUnconnectedGlossLines.setText(
+                                f"Unconnected Gloss Line: "
+                                f"{program_state.unconnected_gloss_lines.get_current_index()+1}"
+                                f"/"
+                                f"{len(program_state.unconnected_gloss_lines)}"
+                            )
                             program_state.unconnected_gloss_lines.next_element()
                         except ValueError as e:
                             LoggerSingleton().logger.log_exception(e)
