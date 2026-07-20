@@ -1,6 +1,6 @@
 from PySide6.QtGui import QIcon, QPixmap, Qt, QPainter
 from PySide6.QtWidgets import QWidget, QSizePolicy, QPushButton, QTreeWidget, QVBoxLayout, QStyleOptionButton, QStyle, \
-    QApplication
+    QApplication, QSplitter
 
 
 def get_checkbox_icon(checked: Qt.CheckState):
@@ -54,8 +54,16 @@ class ChainManipulation(QWidget):
         verticalLayout.setObjectName(u"verticalLayout")
 
         self.treeDisplayChains = QTreeWidget(parent)
+        self.treeDisplayIsolated = QTreeWidget(parent)
         self.buttonRemoveChain = QPushButton(parent)
-        verticalLayout.addWidget(self.treeDisplayChains)
+
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.addWidget(self.treeDisplayChains)
+        splitter.addWidget(self.treeDisplayIsolated)
+
+        verticalLayout.addWidget(splitter)
+
+
         verticalLayout.addWidget(self.buttonRemoveChain)
 
         self.buttonRemoveChain.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.EditClear)))
@@ -65,11 +73,15 @@ class ChainManipulation(QWidget):
 
 
         qtreewidgetitem = self.treeDisplayChains.headerItem()
-
         qtreewidgetitem.setText(0, "Chain")
         qtreewidgetitem.setText(1, "Visible")
         qtreewidgetitem.setText(2, "Connection")
-        self.buttonRemoveChain.setText("Remove Chain")
+
+        qtreewidgetitem = self.treeDisplayIsolated.headerItem()
+        qtreewidgetitem.setText(0, "Isolated Gloss Line")
+        qtreewidgetitem.setText(1, "Properties")
+
+        self.buttonRemoveChain.setText("Remove")
 
         self.treeDisplayChains.header().setSectionsClickable(True)
 
@@ -82,6 +94,7 @@ class ChainManipulation(QWidget):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.treeDisplayChains.sizePolicy().hasHeightForWidth())
         self.treeDisplayChains.setSizePolicy(sizePolicy)
+        self.treeDisplayIsolated.setSizePolicy(sizePolicy)
 
         self.visibility_header_checkbox_set_checkstate(Qt.CheckState.Unchecked)
 

@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List
 
 import tqdm
 
@@ -13,6 +13,7 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
     for all methods that change the internal state.
 
     Properties:
+        connections (list[ConnectedPair]): The list of individual connections on the page.
         clean_tei (BeautifulSoup): The page TEI, but all connection info and IDs are stripped away.
 
     Attributes:
@@ -31,6 +32,17 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
     def append_connection(self, connection: ConnectedPair):
         connection.is_visible = True  # set the connection to be visible by default
         self.connections.append(connection)
+
+    @property
+    def connections(self) -> list[ConnectedPair]:
+        return self._connections
+
+    @connections.setter
+    def connections(self, other):
+        if other != self:
+            self._connections = other
+        self.has_unsaved_changes = True
+
 
     @property
     def clean_tei(self):
@@ -131,7 +143,10 @@ class GlossConnectionHandler:
                         dictionary["end"]["line_id"] = connection.end.line.id
 
                     current_page_connections.append(dictionary)
-                page_connections[connector_idx] = current_page_connections
+                page_connections[connector_idx] = {
+                    "connections": current_page_connections,
+                    "isolated_glosses": [gloss.to_dict() for gloss in connector.isolated_glosses]
+                }
             else:  # for pages that have not changed, take the buffer
                 page_connections[connector_idx] = self._buffered_serialization[connector_idx]
 
@@ -146,6 +161,8 @@ class GlossConnectionHandler:
         :param tqdm_progress: A tqdm progress bar for tracking the deserialization progress.
         :return: 
         """
+
+
         if tqdm_progress is not None:
             tqdm_progress.iterable = dict_list
             tqdm_progress.total = len(dict_list)
@@ -158,7 +175,14 @@ class GlossConnectionHandler:
         self._buffered_serialization = dict_list
         
         connectors = []
-        for page_idx, connection_list in enumerate(tqdm_progress):
+        for page_idx, property_dict in enumerate(tqdm_progress):
+
+            # legacy mode:
+            if "connections" not in property_dict:
+                connection_list = property_dict
+            else:
+                connection_list = property_dict["connections"]
+
             current_page = mets_book[page_idx]
             current_page_connections = []
             for connection in connection_list:
@@ -175,6 +199,12 @@ class GlossConnectionHandler:
                     constructed_object.end.page = current_page
                 current_page_connections.append(constructed_object)
             connector = ObservableGlossOnPageConnector(current_page, callback=self._execute_callback)
+
+            if "isolated_glosses" in property_dict:
+                connector.isolated_glosses = [
+                    GlossLine.from_dict(gloss_dict) for gloss_dict in property_dict["isolated_glosses"]
+                ]
+
             for connection in current_page_connections:
                 connector.append_connection(connection)
             connectors.append(connector)

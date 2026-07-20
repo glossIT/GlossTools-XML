@@ -103,6 +103,22 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
     page_chains = connector.connection_chains
     objects = []
 
+    isolated_glosses = connector.isolated_glosses
+
+    # draw all isolated gloss lines
+    for isolated_gloss in isolated_glosses:
+        color = get_gloss_color(isolated_gloss)
+
+        rectangle = get_display_rectangle(polygon_to_rectangle(isolated_gloss.coordinates.exterior.coords))
+        if rectangle is not None:
+            item_bounding_box = PolygonItem(
+                rectangle,
+                color
+            )
+            objects.append(item_bounding_box)
+        else:
+            LoggerSingleton().logger.log_warning(f"Could not get rectangle of {isolated_gloss}.")
+
     for chain in page_chains:
         if True in [connection.is_visible for connection in chain]:  # draw chain if at least one connection is visible
             for connection in chain:
