@@ -597,7 +597,7 @@ class Ui_MainWindow(object):
                             ].get_object_from_id(current_gloss_line)
                             rectangle = current_object.get_bounding_box()
                             rectangle = QRectF(*rectangle_xywh(rectangle))
-                            self.imageGraphicsView.fitInView(rectangle, Qt.AspectRatioMode.KeepAspectRatio)
+                            self.imageGraphicsView.centerOn(rectangle.center())
                             program_state.unconnected_gloss_lines.next_element()
                         except ValueError as e:
                             LoggerSingleton().logger.log_exception(e)
