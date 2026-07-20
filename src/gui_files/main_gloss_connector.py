@@ -398,7 +398,7 @@ class Ui_MainWindow(object):
                 self.imageGraphicsView.centerOn(rectangle.center())
 
             # If a checkbox was clicked, update check box values for visibility!
-            if cycle_index is not None and connection_in_cycle_index is None and column == 1:
+            if connection_in_cycle_index is None and column == 1:
                 self.main_window.thread_function(update_visibility)
 
 
@@ -414,7 +414,6 @@ class Ui_MainWindow(object):
             )
 
             isolated_index = None
-            connection_in_cycle_index = None
 
             if curr_isolated_item is not None:
                 isolated_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(curr_isolated_item)
