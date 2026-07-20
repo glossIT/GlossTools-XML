@@ -418,8 +418,6 @@ class _ProgramState(QObject):
         )
         self._currently_selected_object = current_object
 
-        new_connections = None
-
         # Only do something if we have a previously selected and currently selected object
         if previous_object is not None and current_object is not None:
             all_start = [
@@ -435,15 +433,22 @@ class _ProgramState(QObject):
             #    e.g., a -> b -> c -> a
 
             connection_to_add = ConnectedPair(previous_object, current_object)
+            isolated_glosses = self.gloss_connection_handler[self.current_page_index].isolated_glosses
 
             # 1) previous object is not a gloss
             if not isinstance(previous_object, GlossLine):
                 pass
             # 2) previous and current object are the same
             elif previous_object == current_object:
-                pass
-            # 3) previous object already is start of another connection
-            elif previous_object in all_start:
+                if current_object not in isolated_glosses:
+                    self.add_to_isolated_glosses(current_object)
+                    # remove selection, since no other object can be appended anyway
+                    self.currently_selected_object = None
+                else:
+                    self.show_toast.emit("Error: Gloss ",
+                                         f"{previous_object} is already marked as isolated", ToastPreset.ERROR)
+            # 3) previous object already is start of another connection or an isolated gloss line
+            elif previous_object in all_start + isolated_glosses:
                 self.show_toast.emit("Error: Can't connect",
                                      f"{previous_object} already points to another object", ToastPreset.ERROR)
             # 4) the two objects would form a circular connection
@@ -498,6 +503,22 @@ class _ProgramState(QObject):
 
         self.update_connection_objects()
         self._schedule_emit("remove_connection")
+
+    def add_to_isolated_glosses(self, gloss: GlossLine):
+        LoggerSingleton().logger.log_info(f"_ProgramState.add_to_isolated_glosses(gloss={gloss})")
+        if self.current_page_index is not None:
+            self.gloss_connection_handler[self.current_page_index].isolated_glosses.append(gloss)
+            self.gloss_connection_handler[self.current_page_index].has_unsaved_changes = True
+            self._schedule_emit("add_to_isolated_glosses")
+
+    def remove_from_isolated_glosses(self, idx: int):
+        LoggerSingleton().logger.log_info(f"_ProgramState.remove_from_isolated_glosses(idx={idx})")
+        if self.current_page_index is not None and idx < len(
+            self.gloss_connection_handler[self.current_page_index].isolated_glosses
+        ):
+            del self.gloss_connection_handler[self.current_page_index].isolated_glosses[idx]
+            self.gloss_connection_handler[self.current_page_index].has_unsaved_changes = True
+            self._schedule_emit("remove_from_isolated_glosses")
 
     def clear_metsbook_cache(self):
         """

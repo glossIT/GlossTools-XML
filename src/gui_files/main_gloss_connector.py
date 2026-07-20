@@ -323,11 +323,21 @@ class Ui_MainWindow(object):
                 chains = program_state.gloss_connection_handler[program_state.current_page_index].connection_chains
                 self._tree_from_chains(chains)
 
+                isolated_glosses = program_state.gloss_connection_handler[
+                    program_state.current_page_index
+                ].isolated_glosses
+                self._tree_from_isolated_glosses(isolated_glosses)
+
                 if program_state.currently_selected_object is not None:
-                    for idx, chain in enumerate(chains):
-                        for connection in chain:
-                            if program_state.currently_selected_object.id in (connection.start.id, connection.end.id):
-                                self.chainManipulation.treeDisplayChains.topLevelItem(idx).setSelected(True)
+                    try:
+                        isolated_idx = isolated_glosses.index(program_state.currently_selected_object)
+                        self.chainManipulation.treeDisplayIsolated.topLevelItem(isolated_idx).setSelected(True)
+                    except ValueError:  # if not isolated, maybe it is in a chain
+                        for idx, chain in enumerate(chains):
+                            for connection in chain:
+                                if program_state.currently_selected_object.id in (connection.start.id, connection.end.id):
+                                    self.chainManipulation.treeDisplayChains.topLevelItem(idx).setSelected(True)
+
         program_state.data_changed.connect(update_tree)
 
         def update_visibility():
@@ -343,26 +353,30 @@ class Ui_MainWindow(object):
             program_state.update_connection_objects()
 
         # Connect the selection of an entry in the tree widget with a toggle of the selection button
-        def on_selection_changed():
-            curr_item = self.chainManipulation.treeDisplayChains.currentItem()
+        def on_chain_selection_changed(index):
+            self.chainManipulation.treeDisplayIsolated.clearSelection()
+
+            curr_chain_item = self.chainManipulation.treeDisplayChains.currentItem()
+            column = index.column()
 
             LoggerSingleton().logger.log_info(
-                f"Ui_MainWindow.setupUi.on_selection_changed() ("
-                f"col_0 = '{curr_item.text(0) if curr_item is not None else None}', "
-                f"col_1 = '{curr_item.text(1) if curr_item is not None else None}'"
-                f"col_2 = '{curr_item.text(2) if curr_item is not None else None}'"
+                f"Ui_MainWindow.setupUi.on_chain_selection_changed() ("
+                f"col_0 = '{curr_chain_item.text(0) if curr_chain_item is not None else None}', "
+                f"col_1 = '{curr_chain_item.text(1) if curr_chain_item is not None else None}'"
+                f"col_2 = '{curr_chain_item.text(2) if curr_chain_item is not None else None}'"
                 f")"
             )
 
             cycle_index = None
             connection_in_cycle_index = None
-            if curr_item is not None and curr_item.columnCount() == 2:
-                cycle_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(curr_item)
+
+            if curr_chain_item is not None and curr_chain_item.columnCount() == 2:
+                cycle_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(curr_chain_item)
                 self.chainManipulation.buttonRemoveChain.setEnabled(True)
             else:
-                if curr_item is not None:
-                    connection_in_cycle_index = curr_item.parent().indexOfChild(curr_item)
-                    cycle_element = curr_item.parent()
+                if curr_chain_item is not None:
+                    connection_in_cycle_index = curr_chain_item.parent().indexOfChild(curr_chain_item)
+                    cycle_element = curr_chain_item.parent()
                     cycle_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(cycle_element)
                 self.chainManipulation.buttonRemoveChain.setEnabled(False)
 
@@ -383,10 +397,45 @@ class Ui_MainWindow(object):
                 rectangle = QRectF(*rectangle_xywh(rectangle))
                 self.imageGraphicsView.centerOn(rectangle.center())
 
-            # Update check box values for visibility!
-            self.main_window.thread_function(update_visibility)
+            # If a checkbox was clicked, update check box values for visibility!
+            if cycle_index is not None and connection_in_cycle_index is None and column == 1:
+                self.main_window.thread_function(update_visibility)
 
-        self.chainManipulation.treeDisplayChains.clicked.connect(on_selection_changed)
+
+        def on_isolated_selection_changed(index):
+            self.chainManipulation.treeDisplayChains.clearSelection()
+
+            curr_isolated_item = self.chainManipulation.treeDisplayIsolated.currentItem()
+            LoggerSingleton().logger.log_info(
+                f"Ui_MainWindow.setupUi.on_isolated_selection_changed() ("
+                f"col_0 = '{curr_isolated_item.text(0) if curr_isolated_item is not None else None}', "
+                f"col_1 = '{curr_isolated_item.text(1) if curr_isolated_item is not None else None}'"
+                f")"
+            )
+
+            isolated_index = None
+            connection_in_cycle_index = None
+
+            if curr_isolated_item is not None:
+                isolated_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(curr_isolated_item)
+                self.chainManipulation.buttonRemoveChain.setEnabled(True)
+            else:
+                self.chainManipulation.buttonRemoveChain.setEnabled(False)
+
+            # Center view to the start element of the selection
+            view_obj = None
+            if isolated_index is not None:
+                view_obj = program_state.gloss_connection_handler[
+                        program_state.current_page_index
+                    ].isolated_glosses[isolated_index]
+
+            if view_obj is not None:  # the start of a connection is always a GlossLine object
+                rectangle = view_obj.get_bounding_box()
+                rectangle = QRectF(*rectangle_xywh(rectangle))
+                self.imageGraphicsView.centerOn(rectangle.center())
+
+        self.chainManipulation.treeDisplayChains.clicked.connect(on_chain_selection_changed)
+        self.chainManipulation.treeDisplayIsolated.clicked.connect(on_isolated_selection_changed)
 
         # When clicking on the "Visible" header element, toggle all visibility elements
         def on_click_visible_header(index):
@@ -415,13 +464,18 @@ class Ui_MainWindow(object):
 
         # Connect clicking the remove connection button with deleting the current connection
         def on_click_remove_connection():
-            curr_item = self.chainManipulation.treeDisplayChains.currentItem()
+            curr_chain_item = self.chainManipulation.treeDisplayChains.currentItem()
+
+            curr_isolated_item = self.chainManipulation.treeDisplayIsolated.currentItem()
 
             def remove_connection():
-                if curr_item is not None:
+                if curr_chain_item is not None:
                     # because the naming convention is 'Child 2' for the 1st tree entry
-                    index_to_delete = int(curr_item.text(0).split(" ")[-1]) - 1
+                    index_to_delete = int(curr_chain_item.text(0).split(" ")[-1]) - 1
                     program_state.remove_connection(index_to_delete)
+                if curr_isolated_item is not None:
+                    index_to_delete = int(curr_isolated_item.text(0).split(" ")[-1]) - 1
+                    program_state.remove_from_isolated_glosses(index_to_delete)
             self.main_window.thread_function(remove_connection)
         self.chainManipulation.buttonRemoveChain.clicked.connect(on_click_remove_connection)
 
@@ -597,7 +651,14 @@ class Ui_MainWindow(object):
                             ].get_object_from_id(current_gloss_line)
                             rectangle = current_object.get_bounding_box()
                             rectangle = QRectF(*rectangle_xywh(rectangle))
-                            self.imageGraphicsView.fitInView(rectangle, Qt.AspectRatioMode.KeepAspectRatio)
+                            self.imageGraphicsView.centerOn(rectangle.center())
+                            # Update label text to show which gloss the user currently is on
+                            self.labelUnconnectedGlossLines.setText(
+                                f"Unconnected Gloss Line: "
+                                f"{program_state.unconnected_gloss_lines.get_current_index()+1}"
+                                f"/"
+                                f"{len(program_state.unconnected_gloss_lines)}"
+                            )
                             program_state.unconnected_gloss_lines.next_element()
                         except ValueError as e:
                             LoggerSingleton().logger.log_exception(e)
@@ -714,3 +775,21 @@ class Ui_MainWindow(object):
         else:
             self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.Unchecked)
         self.chainManipulation.treeDisplayChains.expandAll()
+
+    def _tree_from_isolated_glosses(self, isolated_glosses: list[GlossLine]):
+        """
+        Updates the treeDisplayIsolated widget according to the content of the isolated gloss lines.
+        :param isolated_glosses: List of isolated glosses.
+        """
+        LoggerSingleton().logger.log_info(
+            f"Ui_MainWindow._tree_from_isolated_glosses(...)"
+        )
+        self.chainManipulation.treeDisplayIsolated.clearSelection()
+        self.chainManipulation.treeDisplayIsolated.clear()
+
+        for idx, gloss in enumerate(isolated_glosses):
+            item = QTreeWidgetItem(self.chainManipulation.treeDisplayIsolated)
+            item.setText(0, f"Gloss {idx+1}")
+            item.setText(1, gloss.to_minimal_string())
+
+        self.chainManipulation.treeDisplayIsolated.expandAll()
