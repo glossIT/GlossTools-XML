@@ -20,9 +20,9 @@ from coordinate_manipulation import rectangle_xywh
 from glossit_connect_glosses import ConnectedPair, Word
 from glossit_dataclasses import GlossLine, LineType
 
-from .graphics import construct_connection_graphics_from_connector, \
-    construct_currently_selected_object_graphic
+from .graphics import construct_currently_selected_object_graphic
 from .logger import LoggerSingleton
+from .widget_chainmanipulation import ChainManipulation
 from .widgets import ClickableLabel, FocusableLineEdit, ToolTipMenu
 from .program_state import ProgramStateSingleton
 from .widget_imagegraphicsview import ImageGraphicsView
@@ -226,27 +226,13 @@ class Ui_MainWindow(object):
         # Tree view
         container = QWidget(self.centralwidget)
 
-        self.verticalLayout = QVBoxLayout(container)
-        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.chainManipulation = ChainManipulation(container)
+        self.chainManipulation.setObjectName(u"chainManipulation")
 
-        self.treeDisplayChains = QTreeWidget(self.centralwidget)
-        self.treeDisplayChains.setObjectName(u"treeDisplayChains")
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.treeDisplayChains.sizePolicy().hasHeightForWidth())
-        self.treeDisplayChains.setSizePolicy(sizePolicy)
-        self.verticalLayout.addWidget(self.treeDisplayChains)
-
-        self.buttonRemoveChain = QPushButton(self.centralwidget)
-        self.buttonRemoveChain.setToolTip(u"Remove the currently selected connection chain")
-        self.buttonRemoveChain.setObjectName(u"buttonRemoveChain")
-        self.buttonRemoveChain.setEnabled(False)
-        self.buttonRemoveChain.clicked.connect(
+        self.chainManipulation.buttonRemoveChain.setToolTip(u"Remove the currently selected connection chain")
+        self.chainManipulation.buttonRemoveChain.clicked.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonRemoveChain.clicked")
         )
-        self.buttonRemoveChain.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.EditClear)))
-        self.verticalLayout.addWidget(self.buttonRemoveChain)
 
         dock = QDockWidget("Connection Chains:", self.centralwidget)
         dock.setObjectName("connectionChainsDock")
@@ -302,6 +288,7 @@ class Ui_MainWindow(object):
                 f"Ui_MainWindow.setupUi.update_image(...)"
             )
             self.imageGraphicsView.scene.clear()
+            
             if program_state.draw_image is not None:
                 self.imageGraphicsView.load_image_from_pil(
                     program_state.draw_image
@@ -333,32 +320,51 @@ class Ui_MainWindow(object):
                     and program_state.gloss_connection_handler is not None
                     and len(program_state.gloss_connection_handler) > 0
             ):
-                self._tree_from_chains(
-                    program_state.gloss_connection_handler[program_state.current_page_index].connection_chains
-                )
+                chains = program_state.gloss_connection_handler[program_state.current_page_index].connection_chains
+                self._tree_from_chains(chains)
+
+                if program_state.currently_selected_object is not None:
+                    for idx, chain in enumerate(chains):
+                        for connection in chain:
+                            if program_state.currently_selected_object.id in (connection.start.id, connection.end.id):
+                                self.chainManipulation.treeDisplayChains.topLevelItem(idx).setSelected(True)
         program_state.data_changed.connect(update_tree)
+
+        def update_visibility():
+            top_level_items = [
+                self.chainManipulation.treeDisplayChains.topLevelItem(i)
+                for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
+            ]
+            for idx, item in enumerate(top_level_items):
+                for connection in program_state.gloss_connection_handler[
+                    program_state.current_page_index
+                ].connection_chains[idx]:
+                    connection.is_visible = item.checkState(1) == Qt.CheckState.Checked
+            program_state.update_connection_objects()
 
         # Connect the selection of an entry in the tree widget with a toggle of the selection button
         def on_selection_changed():
-            curr_item = self.treeDisplayChains.currentItem()
+            curr_item = self.chainManipulation.treeDisplayChains.currentItem()
+
             LoggerSingleton().logger.log_info(
                 f"Ui_MainWindow.setupUi.on_selection_changed() ("
                 f"col_0 = '{curr_item.text(0) if curr_item is not None else None}', "
                 f"col_1 = '{curr_item.text(1) if curr_item is not None else None}'"
+                f"col_2 = '{curr_item.text(2) if curr_item is not None else None}'"
                 f")"
             )
 
             cycle_index = None
             connection_in_cycle_index = None
-            if curr_item is not None and curr_item.columnCount() == 1:
-                cycle_index = self.treeDisplayChains.indexOfTopLevelItem(curr_item)
-                self.buttonRemoveChain.setEnabled(True)
+            if curr_item is not None and curr_item.columnCount() == 2:
+                cycle_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(curr_item)
+                self.chainManipulation.buttonRemoveChain.setEnabled(True)
             else:
                 if curr_item is not None:
                     connection_in_cycle_index = curr_item.parent().indexOfChild(curr_item)
                     cycle_element = curr_item.parent()
-                    cycle_index = self.treeDisplayChains.indexOfTopLevelItem(cycle_element)
-                self.buttonRemoveChain.setEnabled(False)
+                    cycle_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(cycle_element)
+                self.chainManipulation.buttonRemoveChain.setEnabled(False)
 
             # Center view to the start element of the selection
             view_obj = None
@@ -375,13 +381,41 @@ class Ui_MainWindow(object):
             if view_obj is not None:  # the start of a connection is always a GlossLine object
                 rectangle = view_obj.get_bounding_box()
                 rectangle = QRectF(*rectangle_xywh(rectangle))
-                self.imageGraphicsView.fitInView(rectangle, Qt.AspectRatioMode.KeepAspectRatio)
+                self.imageGraphicsView.centerOn(rectangle.center())
 
-        self.treeDisplayChains.clicked.connect(on_selection_changed)
+            # Update check box values for visibility!
+            self.main_window.thread_function(update_visibility)
+
+        self.chainManipulation.treeDisplayChains.clicked.connect(on_selection_changed)
+
+        # When clicking on the "Visible" header element, toggle all visibility elements
+        def on_click_visible_header(index):
+            LoggerSingleton().logger.log_info(
+                f"Ui_MainWindow.setupUi.on_click_visible_header()"
+            )
+            if index == 1:  # column "Visible"
+                top_level_items = [
+                    self.chainManipulation.treeDisplayChains.topLevelItem(i)
+                    for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
+                ]
+                all_are_checked = True
+                for item in top_level_items:
+                    all_are_checked = all_are_checked and (item.checkState(1) == Qt.CheckState.Checked)
+                if all_are_checked:  # if all chains are set to visible, set all to invisible
+                    for item in top_level_items:
+                        item.setCheckState(1, Qt.CheckState.Unchecked)
+                else:  # if at least one item is unchecked, set all chains to visible
+                    for item in top_level_items:
+                        item.setCheckState(1, Qt.CheckState.Checked)
+
+                # Update check box values for visibility!
+                self.main_window.thread_function(update_visibility)
+
+        self.chainManipulation.treeDisplayChains.header().sectionClicked.connect(on_click_visible_header)
 
         # Connect clicking the remove connection button with deleting the current connection
         def on_click_remove_connection():
-            curr_item = self.treeDisplayChains.currentItem()
+            curr_item = self.chainManipulation.treeDisplayChains.currentItem()
 
             def remove_connection():
                 if curr_item is not None:
@@ -389,7 +423,7 @@ class Ui_MainWindow(object):
                     index_to_delete = int(curr_item.text(0).split(" ")[-1]) - 1
                     program_state.remove_connection(index_to_delete)
             self.main_window.thread_function(remove_connection)
-        self.buttonRemoveChain.clicked.connect(on_click_remove_connection)
+        self.chainManipulation.buttonRemoveChain.clicked.connect(on_click_remove_connection)
 
         # Connect clicking the update display text checkbox
         def on_click_checkbox_display_text():
@@ -618,11 +652,6 @@ class Ui_MainWindow(object):
         self.actionExportTei.setText(QCoreApplication.translate("MainWindow", u"Export TEI", None))
         self.actionExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
         self.actionExportView.setText(QCoreApplication.translate("MainWindow", u"Export View (PDF)", None))
-
-        ___qtreewidgetitem = self.treeDisplayChains.headerItem()
-        ___qtreewidgetitem.setText(1, QCoreApplication.translate("MainWindow", u"Connection", None))
-        ___qtreewidgetitem.setText(0, QCoreApplication.translate("MainWindow", u"Chain", None))
-        self.buttonRemoveChain.setText(QCoreApplication.translate("MainWindow", u"Remove Chain", None))
         self.buttonUndo.setText(QCoreApplication.translate("MainWindow", u"Undo", None))
         self.buttonRedo.setText(QCoreApplication.translate("MainWindow", u"Redo", None))
     # retranslateUi
@@ -656,16 +685,32 @@ class Ui_MainWindow(object):
         LoggerSingleton().logger.log_info(
             f"Ui_MainWindow._tree_from_chains(...)"
         )
-        self.treeDisplayChains.clearSelection()
-        self.treeDisplayChains.clear()
+        self.chainManipulation.treeDisplayChains.clearSelection()
+        self.chainManipulation.treeDisplayChains.clear()
+
+        check_state_list = []
         for idx, chain in enumerate(chains):
-            item = QTreeWidgetItem(self.treeDisplayChains)
+            item = QTreeWidgetItem(self.chainManipulation.treeDisplayChains)
             item.setText(0, f"Chain {idx+1}")
+
+            visibility = False  # visibility should be if at least one connection of the chain is visible!
             for connection in chain:
                 subitem = QTreeWidgetItem(item)
                 subitem.setText(
-                    1,
+                    2,
                     f"{connection.start.type} '{connection.start.text}' "
                     f"→ {connection.end.type} '{connection.end.text}'"
                 )
-        self.treeDisplayChains.expandAll()
+                visibility = visibility or connection.is_visible
+            check_state = Qt.CheckState.Checked if visibility else Qt.CheckState.Unchecked
+            check_state_list.append(check_state)
+            item.setCheckState(1, check_state)
+
+        # Update header item icon according to check states
+        if Qt.CheckState.Checked in check_state_list and Qt.CheckState.Unchecked in check_state_list:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.PartiallyChecked)
+        elif Qt.CheckState.Checked in check_state_list:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.Checked)
+        else:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.Unchecked)
+        self.chainManipulation.treeDisplayChains.expandAll()

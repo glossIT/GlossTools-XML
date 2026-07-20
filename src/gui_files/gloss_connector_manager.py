@@ -28,6 +28,10 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
         self.callback = callback
         self.has_unsaved_changes = False
 
+    def append_connection(self, connection: ConnectedPair):
+        connection.is_visible = True  # set the connection to be visible by default
+        self.connections.append(connection)
+
     @property
     def clean_tei(self):
         return super().clean_tei
@@ -172,7 +176,7 @@ class GlossConnectionHandler:
                 current_page_connections.append(constructed_object)
             connector = ObservableGlossOnPageConnector(current_page, callback=self._execute_callback)
             for connection in current_page_connections:
-                connector.connections.append(connection)
+                connector.append_connection(connection)
             connectors.append(connector)
             
         self._connector_list = connectors
@@ -203,7 +207,7 @@ class GlossConnectionHandler:
         :param connection:
         :return:
         """
-        self._connector_list[connector_idx].connections.append(connection)
+        self._connector_list[connector_idx].append_connection(connection)
         self._connector_list[connector_idx].has_unsaved_changes = True
         self._execute_callback()
 

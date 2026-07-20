@@ -56,10 +56,12 @@ class ImageGraphicsView(QGraphicsView):
             f")"
         )
 
+        program_state = ProgramStateSingleton().program_state
+
         if event.button() == Qt.MouseButton.RightButton:
             def on_select_object(x, y):
                 def select_object():
-                    ProgramStateSingleton().program_state.select_or_connect_on_coordinate(x, y)
+                    program_state.select_or_connect_on_coordinate(x, y)
                 return select_object
             self.main_window.thread_function(on_select_object(scene_x, scene_y))
         else:
