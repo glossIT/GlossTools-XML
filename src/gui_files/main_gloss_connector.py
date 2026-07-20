@@ -388,6 +388,31 @@ class Ui_MainWindow(object):
 
         self.chainManipulation.treeDisplayChains.clicked.connect(on_selection_changed)
 
+        # When clicking on the "Visible" header element, toggle all visibility elements
+        def on_click_visible_header(index):
+            LoggerSingleton().logger.log_info(
+                f"Ui_MainWindow.setupUi.on_click_visible_header()"
+            )
+            if index == 1:  # column "Visible"
+                top_level_items = [
+                    self.chainManipulation.treeDisplayChains.topLevelItem(i)
+                    for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
+                ]
+                all_are_checked = True
+                for item in top_level_items:
+                    all_are_checked = all_are_checked and (item.checkState(1) == Qt.CheckState.Checked)
+                if all_are_checked:  # if all chains are set to visible, set all to invisible
+                    for item in top_level_items:
+                        item.setCheckState(1, Qt.CheckState.Unchecked)
+                else:  # if at least one item is unchecked, set all chains to visible
+                    for item in top_level_items:
+                        item.setCheckState(1, Qt.CheckState.Checked)
+
+                # Update check box values for visibility!
+                self.main_window.thread_function(update_visibility)
+
+        self.chainManipulation.treeDisplayChains.header().sectionClicked.connect(on_click_visible_header)
+
         # Connect clicking the remove connection button with deleting the current connection
         def on_click_remove_connection():
             curr_item = self.chainManipulation.treeDisplayChains.currentItem()
@@ -662,6 +687,8 @@ class Ui_MainWindow(object):
         )
         self.chainManipulation.treeDisplayChains.clearSelection()
         self.chainManipulation.treeDisplayChains.clear()
+
+        check_state_list = []
         for idx, chain in enumerate(chains):
             item = QTreeWidgetItem(self.chainManipulation.treeDisplayChains)
             item.setText(0, f"Chain {idx+1}")
@@ -675,5 +702,15 @@ class Ui_MainWindow(object):
                     f"→ {connection.end.type} '{connection.end.text}'"
                 )
                 visibility = visibility or connection.is_visible
-            item.setCheckState(1, Qt.CheckState.Checked if visibility else Qt.CheckState.Unchecked)
+            check_state = Qt.CheckState.Checked if visibility else Qt.CheckState.Unchecked
+            check_state_list.append(check_state)
+            item.setCheckState(1, check_state)
+
+        # Update header item icon according to check states
+        if Qt.CheckState.Checked in check_state_list and Qt.CheckState.Unchecked in check_state_list:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.PartiallyChecked)
+        elif Qt.CheckState.Checked in check_state_list:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.Checked)
+        else:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.Unchecked)
         self.chainManipulation.treeDisplayChains.expandAll()
