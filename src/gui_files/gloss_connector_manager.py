@@ -12,13 +12,16 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
     Class ObservableGlossOnPageConnector endows GlossConnector with callback functionality
     for all methods that change the internal state.
 
+    Attributes:
+        callback (Callable): Callback to be executed when the state is changed.
+        has_unsaved_changes (bool): True if the object has some unsaved changes.
+
     Properties:
         connections (list[ConnectedPair]): The list of individual connections on the page.
         clean_tei (BeautifulSoup): The page TEI, but all connection info and IDs are stripped away.
 
-    Attributes:
-        callback (Callable): Callback to be executed when the state is changed.
-        has_unsaved_changes (bool): True if the object has some unsaved changes.
+    Methods:
+        append_connection (ConnectedPair): Appends a connection to the gloss connector and sets its visibility status.
     """
     def __init__(self, *args, callback: Callable = None, **kwargs,):
         """
@@ -30,6 +33,10 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
         self.has_unsaved_changes = False
 
     def append_connection(self, connection: ConnectedPair):
+        """
+        Appends a connection to the gloss connector and sets its visibility status.
+        :param connection: Connection to append.
+        """
         connection.is_visible = True  # set the connection to be visible by default
         self.connections.append(connection)
 
@@ -42,7 +49,6 @@ class ObservableGlossOnPageConnector(GlossOnPageConnector):
         if other != self:
             self._connections = other
         self.has_unsaved_changes = True
-
 
     @property
     def clean_tei(self):
@@ -161,8 +167,6 @@ class GlossConnectionHandler:
         :param tqdm_progress: A tqdm progress bar for tracking the deserialization progress.
         :return: 
         """
-
-
         if tqdm_progress is not None:
             tqdm_progress.iterable = dict_list
             tqdm_progress.total = len(dict_list)

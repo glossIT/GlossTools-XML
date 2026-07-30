@@ -1,10 +1,11 @@
 import builtins
+import json
 from enum import Enum
 
 from PySide6.QtCore import QSettings, QByteArray
 from PySide6.QtGui import QColor
 
-from constants import Constants
+from constants import StringConstants
 
 
 class constrained_float(float):
@@ -27,7 +28,7 @@ class constrained_float(float):
 
 class uint8_t(int):
     """
-    An in type for values between 0 and 255.
+    An int type for values between 0 and 255.
 
     Attributes:
         min_value: The minimum value.
@@ -41,6 +42,19 @@ class uint8_t(int):
         if not (cls.min_value <= value <= cls.max_value):
             raise ValueError(f"Value {value} not in range [{cls.min_value}, {cls.max_value}]")
         return int.__new__(cls, value)
+
+
+class list_str(list[str]):
+    """
+    A type for lists of strings.
+    """
+
+    def __new__(cls, value):
+        value = list(value)
+        for item in value:
+            if not (isinstance(item, str)):
+                raise ValueError(f"Value {item} is not a string")
+        return value
 
 
 class Setting:
@@ -71,6 +85,7 @@ class Settings(Setting, Enum):
     """
     GEOMETRY = ("geometry", QByteArray)                 # Main window geometry (QByteArray)
     WINDOW_STATE = ("windowState", QByteArray)          # Main window state (QByteArray)
+    OPEN_RECENT = ("openRecent", list_str, [])             # List of recently opened files absolute paths (list[str])
 
     ### Image Options ###
     IMAGE_BRIGHTNESS = (                                # Displayed image brightness, value between 0 and 2
@@ -145,7 +160,7 @@ def _get_settings() -> QSettings:
 
     :return: QSettings instance.
     """
-    return QSettings(Constants.ORGANIZATION, Constants.APPLICATION)
+    return QSettings(StringConstants.ORGANIZATION, StringConstants.APPLICATION)
 
 
 def settings_set(setting: Settings, value: object) -> None:
@@ -154,8 +169,10 @@ def settings_set(setting: Settings, value: object) -> None:
     :param setting: Setting to modify.
     :param value: Settings value to set.
     """
-    if isinstance(value, QColor):
+    if issubclass(setting.type, QColor):
         value = value.name(QColor.NameFormat.HexArgb)
+    elif issubclass(setting.type, list_str):
+        value = json.dumps(value)
     _get_settings().setValue(setting.key, value)
 
 
@@ -184,6 +201,14 @@ def settings_get(setting: Settings) -> object:
             return float(value)
         except ValueError:
             return 1.
+    elif issubclass(setting.type, list_str):
+        if isinstance(value, str) and value != "null":
+            try:
+                return json.loads(value)
+            except ValueError:
+                return []
+        else:
+            return []
     else:
         return value
 

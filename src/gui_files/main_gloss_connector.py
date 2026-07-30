@@ -14,7 +14,7 @@ from PySide6.QtGui import (QAction, QIcon, QGuiApplication)
 from PySide6.QtWidgets import (QGridLayout, QHBoxLayout,
                                QLabel, QMainWindow, QMenuBar,
                                QPushButton, QSizePolicy, QStatusBar, QTreeWidget,
-                               QTreeWidgetItem, QVBoxLayout, QWidget, QCheckBox, QDockWidget)
+                               QTreeWidgetItem, QVBoxLayout, QWidget, QCheckBox, QDockWidget, QMenu)
 from pyqttoast import Toast, ToastPosition, ToastPreset
 from coordinate_manipulation import rectangle_xywh
 from glossit_connect_glosses import ConnectedPair, Word
@@ -129,6 +129,11 @@ class Ui_MainWindow(object):
             lambda: LoggerSingleton().logger.log_user_interaction("actionOpenProject.triggered")
         )
         file_menu.addAction(self.actionOpenProject)
+
+        self.menuOpenRecentProject = QMenu("Open Recent...", self.centralwidget)
+        self.menuOpenRecentProject.setObjectName(u"menuOpenRecentProject")
+
+        file_menu.addMenu(self.menuOpenRecentProject)
 
         self.actionSaveProject = QAction(self.centralwidget)
         self.actionSaveProject.setToolTip(u"Save the current GlossIT project")

@@ -4,6 +4,7 @@ from PIL import Image, ImageEnhance
 from PySide6.QtCore import Signal, QObject, QTimer, Slot
 from pyqttoast import ToastPreset
 
+from constants import IntConstants
 from xml_extraction import METSBook
 from glossit_connect_glosses import ConnectedPair, Word
 from glossit_dataclasses import GlossLine
@@ -129,7 +130,7 @@ class _ProgramState(QObject):
         self._spatial_database: SpatialDatabase | None = None
 
         self.unconnected_gloss_lines: CyclicList | None = None
-        self._undo_redo_list: UndoRedoList = UndoRedoList()
+        self._undo_redo_list: UndoRedoList = UndoRedoList(max_size=IntConstants.MAX_UNDO_REDO_STEPS)
         self._gloss_connection_handler = None
 
         def connector_callback():
