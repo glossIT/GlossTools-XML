@@ -2,7 +2,7 @@ import logging
 import threading
 import traceback
 
-from gui_files.settings import SettingsKey, settings_get
+from gui_files.settings import Settings, settings_get
 
 # Initialize custom logging levels
 USER_INTERACTION = 25
@@ -66,7 +66,7 @@ class _Logger:
         self.logger.addHandler(file_handler)
         self.logger.addHandler(stream_handler)
 
-        self.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
+        self.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
 
     def enable_debug_logging(self, enable: bool):
         """

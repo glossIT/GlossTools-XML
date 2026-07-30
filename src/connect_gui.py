@@ -12,6 +12,7 @@ import umsgpack
 import uuid
 import zlib
 
+from constants import Constants
 from glossit_connect_glosses import GlossOnPageConnector
 from gui_files.dialog_change_settings import ChangeSettingsDialog
 from gui_files.dialog_save_on_exit import DialogSaveOnExit
@@ -21,15 +22,9 @@ from gui_files.gloss_connector_manager import ObservableGlossOnPageConnector
 from gui_files.logger import LoggerSingleton
 from gui_files.main_gloss_connector import Ui_MainWindow
 from gui_files.program_state import ProgramStateSingleton
-from gui_files.settings import SettingsKey, settings_get, settings_set, settings_revert_to_default_values
+from gui_files.settings import Settings, settings_get, settings_set, settings_revert_to_default_values
 from gui_files.spatial_database import SpatialDatabase
 from xml_extraction import METSBook
-
-
-# TODO
-class Constants:
-    METS_SCHEMA: str = "./schemas/mets.xsd"
-    TEI_SCHEMA: str = None  # TODO "./schemas/tei.xsd"
 
 
 def show_warning_yesno_dialog(informative_text=""):
@@ -135,9 +130,9 @@ class MainWindow(QMainWindow):
         program_state = ProgramStateSingleton().program_state
         program_state._main_window = self
 
-        QCoreApplication.setOrganizationName("GlossIT")
-        QCoreApplication.setApplicationName("GlossIT Gloss Connector")
-        QCoreApplication.setOrganizationDomain("https://glossit.uni-graz.at")
+        QCoreApplication.setOrganizationName(Constants.ORGANIZATION)
+        QCoreApplication.setApplicationName(Constants.APPLICATION)
+        QCoreApplication.setOrganizationDomain(Constants.DOMAIN)
         self.setWindowIcon(program_state.icon)
 
         self.ui = Ui_MainWindow()
@@ -147,19 +142,19 @@ class MainWindow(QMainWindow):
         program_state.show_toast.connect(self._show_toast)
 
         # Check if all settings are set, otherwise reset them to default values
-        for key in SettingsKey:
-            if settings_get(key) is None:
+        for setting in Settings:
+            if settings_get(setting) is None:
                 settings_revert_to_default_values()
-                LoggerSingleton().logger.log_warning(f"Invalid setting value '{settings_get(key)}' for key '{key}'. "
-                                                     f"Revert all settings to default.")
+                LoggerSingleton().logger.log_warning(f"Invalid setting value '{settings_get(setting)}' for key"
+                                                     f" '{setting.key}'. Revert all settings to default.")
                 break
 
         # Load window geometry
-        self.restoreGeometry(settings_get(SettingsKey.GEOMETRY))
-        self.restoreState(settings_get(SettingsKey.WINDOW_STATE))
+        self.restoreGeometry(settings_get(Settings.GEOMETRY))
+        self.restoreState(settings_get(Settings.WINDOW_STATE))
 
         # Set debug logging
-        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
+        LoggerSingleton().logger.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
 
         # connect buttons to actions
         self.ui.actionNewProject.triggered.connect(self._new_project)
@@ -244,8 +239,8 @@ class MainWindow(QMainWindow):
                 self._save_project(exit_after=True)
                 return
 
-        settings_set(SettingsKey.GEOMETRY, self.saveGeometry())
-        settings_set(SettingsKey.WINDOW_STATE, self.saveState())
+        settings_set(Settings.GEOMETRY, self.saveGeometry())
+        settings_set(Settings.WINDOW_STATE, self.saveState())
         event.accept()
 
     def thread_function(
@@ -750,7 +745,7 @@ class MainWindow(QMainWindow):
                 settings_set(key, value)
 
         program_state = ProgramStateSingleton().program_state
-        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
+        LoggerSingleton().logger.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
         if program_state.draw_image is not None:
             program_state.construct_current_page_graphics()
 

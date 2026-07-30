@@ -8,7 +8,7 @@ from xml_extraction import METSPage, polygon_to_rectangle
 from .gloss_connector_manager import ObservableGlossOnPageConnector
 from .graphics_item import ArrowItem, GraphicsItem, PolygonItem, TextItem
 from .logger import LoggerSingleton
-from .settings import SettingsKey, settings_get
+from .settings import Settings, settings_get
 
 
 def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_text: bool) -> list[GraphicsItem]:
@@ -22,18 +22,18 @@ def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_tex
     """
     def get_gloss_color(gloss: GlossLine):
         if gloss.type == LineType.REFERENCE_SIGN:
-            return settings_get(SettingsKey.REFERENCE_SIGN_FILL)
+            return settings_get(Settings.REFERENCE_SIGN_FILL)
         else:
-            return settings_get(SettingsKey.GLOSS_FILL)
+            return settings_get(Settings.GLOSS_FILL)
 
     def get_gloss_text_color(gloss: GlossLine):
         if gloss.type == LineType.REFERENCE_SIGN:
-            col = settings_get(SettingsKey.REFERENCE_SIGN_TEXT)
-            col.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
+            col = settings_get(Settings.REFERENCE_SIGN_TEXT)
+            col.setAlpha(settings_get(Settings.TEXT_TRANSPARENCY))
             return col
         else:
-            col = settings_get(SettingsKey.GLOSS_TEXT)
-            col.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
+            col = settings_get(Settings.GLOSS_TEXT)
+            col.setAlpha(settings_get(Settings.TEXT_TRANSPARENCY))
             return col
 
     objects = []
@@ -62,13 +62,13 @@ def construct_word_and_gloss_graphics_from_mets_page(page: METSPage, display_tex
         for word_text, word_coordinate in zip(line.words, line.word_bounding_boxes):
             rectangle = get_display_rectangle(word_coordinate)
             if rectangle is not None:
-                polygon_item = PolygonItem(rectangle, settings_get(SettingsKey.MAIN_WORD_FILL), filled=False)
+                polygon_item = PolygonItem(rectangle, settings_get(Settings.MAIN_WORD_FILL), filled=False)
                 objects.append(polygon_item)
 
                 if display_text:
                     fontsize = get_optimal_fontsize(rectangle, word_text)
-                    color = settings_get(SettingsKey.MAIN_WORD_TEXT)
-                    color.setAlpha(int(settings_get(SettingsKey.TEXT_TRANSPARENCY)))
+                    color = settings_get(Settings.MAIN_WORD_TEXT)
+                    color.setAlpha(settings_get(Settings.TEXT_TRANSPARENCY))
                     word_item = TextItem(
                         text=word_text,
                         position=get_optimal_position(rectangle, fontsize),
@@ -92,12 +92,12 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
     """
     def get_gloss_color(gloss: GlossLine):
         if gloss.type == LineType.REFERENCE_SIGN:
-            col = settings_get(SettingsKey.REFERENCE_SIGN_FILL)
-            col.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
+            col = settings_get(Settings.REFERENCE_SIGN_FILL)
+            col.setAlpha(settings_get(Settings.FILL_TRANSPARENCY))
             return col
         else:
-            col = settings_get(SettingsKey.GLOSS_FILL)
-            col.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
+            col = settings_get(Settings.GLOSS_FILL)
+            col.setAlpha(settings_get(Settings.FILL_TRANSPARENCY))
             return col
 
     page_chains = connector.connection_chains
@@ -147,8 +147,8 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
                 if isinstance(connection.end, Word):
                     rectangle = get_display_rectangle(connection.end.bounding_box)
                     if rectangle is not None:
-                        color = settings_get(SettingsKey.MAIN_WORD_FILL)
-                        color.setAlpha(int(settings_get(SettingsKey.FILL_TRANSPARENCY)))
+                        color = settings_get(Settings.MAIN_WORD_FILL)
+                        color.setAlpha(settings_get(Settings.FILL_TRANSPARENCY))
 
                         item_bounding_box = PolygonItem(rectangle, color)
                         objects.append(item_bounding_box)
@@ -166,7 +166,7 @@ def construct_connection_graphics_from_connector(connector: ObservableGlossOnPag
 
                     end_center = np.mean(rectangle, axis=0)
 
-                arrow_item = ArrowItem(start_center, end_center, settings_get(SettingsKey.ARROW_FILL))
+                arrow_item = ArrowItem(start_center, end_center, settings_get(Settings.ARROW_FILL))
                 objects.append(arrow_item)
 
     return objects
@@ -176,10 +176,10 @@ def construct_currently_selected_object_graphic(object: GlossLine | Word) -> Gra
     def get_object_color(object: GlossLine | Word):
         if isinstance(object, GlossLine):
             if object.type == LineType.REFERENCE_SIGN:
-                return settings_get(SettingsKey.REFERENCE_SIGN_FILL)
-            return settings_get(SettingsKey.GLOSS_FILL)
+                return settings_get(Settings.REFERENCE_SIGN_FILL)
+            return settings_get(Settings.GLOSS_FILL)
         else:  # Word
-            return settings_get(SettingsKey.MAIN_WORD_FILL)
+            return settings_get(Settings.MAIN_WORD_FILL)
 
     if isinstance(object, GlossLine):
         coords = get_display_rectangle(polygon_to_rectangle(object.coordinates.exterior.coords))
@@ -188,7 +188,7 @@ def construct_currently_selected_object_graphic(object: GlossLine | Word) -> Gra
 
     if coords is not None:
         color = get_object_color(object)
-        color.setAlpha(int(settings_get(SettingsKey.SELECTION_TRANSPARENCY)))
+        color.setAlpha(settings_get(Settings.SELECTION_TRANSPARENCY))
         polygon_item = PolygonItem(coords, color, filled=True)
         return polygon_item
     else:
