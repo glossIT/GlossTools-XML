@@ -7,6 +7,42 @@ from PySide6.QtGui import QColor
 from constants import Constants
 
 
+class constrained_float(float):
+    """
+    A float type for values between 0. and 2.
+
+    Attributes:
+        min_value: The minimum value.
+        max_value: The maximum value.
+    """
+    min_value: float = 0.
+    max_value: float = 2.
+
+    def __new__(cls, value):
+        value = float(value)
+        if not (cls.min_value <= value <= cls.max_value):
+            raise ValueError(f"Value {value} not in range [{cls.min_value}, {cls.max_value}]")
+        return float.__new__(cls, value)
+
+
+class uint8_t(int):
+    """
+    An in type for values between 0 and 255.
+
+    Attributes:
+        min_value: The minimum value.
+        max_value: The maximum value.
+    """
+    min_value: int = 0
+    max_value: int = 255
+
+    def __new__(cls, value):
+        value = int(value)
+        if not (cls.min_value <= value <= cls.max_value):
+            raise ValueError(f"Value {value} not in range [{cls.min_value}, {cls.max_value}]")
+        return int.__new__(cls, value)
+
+
 class Setting:
     """
     Class Setting stores setting properties.
@@ -38,23 +74,23 @@ class Settings(Setting, Enum):
 
     ### Image Options ###
     IMAGE_BRIGHTNESS = (                                # Displayed image brightness, value between 0 and 2
-        "imageBrightness", float, 0.6, "Image", "Image Brightness"
+        "imageBrightness", constrained_float, 0.6, "Image", "Image Brightness"
     )
     IMAGE_CONTRAST = (                                  # Displayed image contrast, value between 0 and 2
-        "imageContrast", float, 1.0, "Image", "Image Contrast"
+        "imageContrast", constrained_float, 1.0, "Image", "Image Contrast"
     )
     IMAGE_SATURATION = (                                # Displayed image saturation, value between 0 and 2
-        "imageSaturation", float, 1.0, "Image", "Image Saturation"
+        "imageSaturation", constrained_float, 1.0, "Image", "Image Saturation"
     )
 
     FILL_TRANSPARENCY = (                               # The alpha value (between 0 and 255) of the box filling (int)
-        "fillTransparency", int, 48, "Image", "Fill Opacity"
+        "fillTransparency", uint8_t, 48, "Image", "Fill Opacity"
     )
     TEXT_TRANSPARENCY = (                               # The alpha value (between 0 and 255) of the text color (int)
-        "textTransparency", int, 100, "Text Opacity"
+        "textTransparency", uint8_t, 100, "Text Opacity"
     )
     SELECTION_TRANSPARENCY = (                          # The alpha value (between 0 and 255) of current selection (int)
-        "selectionTransparency", int, 80, "Selection Opacity"
+        "selectionTransparency", uint8_t, 80, "Selection Opacity"
     )
 
     ### Color Scheme ###
