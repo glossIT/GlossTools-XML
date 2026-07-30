@@ -87,10 +87,10 @@ class Settings(Setting, Enum):
         "fillTransparency", uint8_t, 48, "Image", "Fill Opacity"
     )
     TEXT_TRANSPARENCY = (                               # The alpha value (between 0 and 255) of the text color (int)
-        "textTransparency", uint8_t, 100, "Text Opacity"
+        "textTransparency", uint8_t, 100, "Image", "Text Opacity"
     )
     SELECTION_TRANSPARENCY = (                          # The alpha value (between 0 and 255) of current selection (int)
-        "selectionTransparency", uint8_t, 80, "Selection Opacity"
+        "selectionTransparency", uint8_t, 80, "Image", "Selection Opacity"
     )
 
     ### Color Scheme ###
@@ -120,6 +120,21 @@ class Settings(Setting, Enum):
     DEBUG_ENABLED = (                                   # True if detailed debug logging is activated (bool)
         "debugEnabled", bool, False, "Advanced", "Enable debug logging"
     )
+
+
+def group_settings_by_menu() -> dict[str, list[Setting]]:
+    """
+    Returns the settings ordered by their menu name.
+    :return: Dictionary of settings indexed by menu name.
+    """
+    settings_dict = {}
+    for setting in Settings:
+        if setting.menu_name is not None:
+            if setting.menu_name in settings_dict:
+                settings_dict[setting.menu_name].append(setting)
+            else:
+                settings_dict[setting.menu_name] = [setting]
+    return settings_dict
 
 
 def _get_settings() -> QSettings:

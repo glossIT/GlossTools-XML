@@ -1,9 +1,10 @@
-from PySide6.QtGui import QIcon, Qt
+from PySide6.QtGui import QIcon, Qt, QColor
 from PySide6.QtWidgets import QDialog, QCheckBox, QHBoxLayout, QVBoxLayout, QPushButton, \
     QLabel, QSlider, QApplication, QLayout, QTabWidget, QWidget
 
 from gui_files.logger import LoggerSingleton
-from gui_files.settings import Settings, settings_get, settings_get_default_values
+from gui_files.settings import (Settings, settings_get, settings_get_default_values, group_settings_by_menu,
+                                uint8_t, constrained_float)
 
 from gui_files.widgets import ColorButton, FloatSlider, LabeledSlider
 
@@ -53,52 +54,22 @@ class ChangeSettingsDialog(QDialog):
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
 
-        # --- IMAGE TAB ---
-        image_tab = QWidget()
-        image_layout = QVBoxLayout(image_tab)
+        for menu_str, settings in group_settings_by_menu().items():
+            tab = QWidget()
+            tab_layout = QVBoxLayout(tab)
 
-        # Image display sliders
-        self._widgets[Settings.IMAGE_BRIGHTNESS] = self._create_slider(
-            "Image Brightness", image_layout, is_normed=True
-        )
-        self._widgets[Settings.IMAGE_CONTRAST] = self._create_slider(
-            "Image Contrast", image_layout, is_normed=True
-        )
-        self._widgets[Settings.IMAGE_SATURATION] = self._create_slider(
-            "Image Saturation", image_layout, is_normed=True
-        )
+            for setting in settings:
+                if issubclass(setting.type, uint8_t):
+                    self._widgets[setting] = self._create_slider(setting.display_name, tab_layout, is_normed=False)
+                elif issubclass(setting.type, constrained_float):
+                    self._widgets[setting] = self._create_slider(setting.display_name, tab_layout, is_normed=True)
+                elif issubclass(setting.type, QColor):
+                    self._widgets[setting] = self._create_color_button(setting.display_name, tab_layout)
+                elif issubclass(setting.type, bool):
+                    self._widgets[setting] = QCheckBox(setting.display_name)
+                    tab_layout.addWidget(self._widgets[setting])
 
-        # Transparency sliders
-        self._widgets[Settings.FILL_TRANSPARENCY] = self._create_slider("Fill Opacity", image_layout)
-        self._widgets[Settings.TEXT_TRANSPARENCY] = self._create_slider("Text Opacity", image_layout)
-        self._widgets[Settings.SELECTION_TRANSPARENCY] = self._create_slider("Selection Opacity", image_layout)
-
-        self.tabs.addTab(image_tab, "Image")
-
-        # --- COLOR TAB ---
-        color_tab = QWidget()
-        color_layout = QVBoxLayout(color_tab)
-
-        # Color pickers
-        self._widgets[Settings.ARROW_FILL] = self._create_color_button("Arrow Fill", color_layout)
-        self._widgets[Settings.MAIN_WORD_FILL] = self._create_color_button("Main Word Fill", color_layout)
-        self._widgets[Settings.MAIN_WORD_TEXT] = self._create_color_button("Main Word Text", color_layout)
-        self._widgets[Settings.REFERENCE_SIGN_FILL] = self._create_color_button("Reference Sign Fill", color_layout)
-        self._widgets[Settings.REFERENCE_SIGN_TEXT] = self._create_color_button("Reference Sign Text", color_layout)
-        self._widgets[Settings.GLOSS_FILL] = self._create_color_button("Gloss Fill", color_layout)
-        self._widgets[Settings.GLOSS_TEXT] = self._create_color_button("Gloss Text", color_layout)
-
-        self.tabs.addTab(color_tab, "Color")
-
-        # --- ADVANCED TAB ---
-        advanced_tab = QWidget()
-        advanced_layout = QVBoxLayout(advanced_tab)
-
-        # Debug mode
-        self._widgets[Settings.DEBUG_ENABLED] = QCheckBox("Enable debug logging")
-        advanced_layout.addWidget(self._widgets[Settings.DEBUG_ENABLED])
-
-        self.tabs.addTab(advanced_tab, "Advanced")
+            self.tabs.addTab(tab, menu_str)
 
         # Save and Cancel buttons
         btn_layout = QHBoxLayout()
