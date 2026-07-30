@@ -59,6 +59,7 @@ class ChangeSettingsDialog(QDialog):
             tab_layout = QVBoxLayout(tab)
 
             for setting in settings:
+                ### Implement new settings types here
                 if issubclass(setting.type, uint8_t):
                     self._widgets[setting] = self._create_slider(setting.display_name, tab_layout, is_normed=False)
                 elif issubclass(setting.type, constrained_float):
@@ -68,6 +69,9 @@ class ChangeSettingsDialog(QDialog):
                 elif issubclass(setting.type, bool):
                     self._widgets[setting] = QCheckBox(setting.display_name)
                     tab_layout.addWidget(self._widgets[setting])
+                else:
+                    raise(NotImplementedError(f"Settings type {setting.type} is not supported yet, it must be"
+                                              f" implemented in ChangeSettingsDialog._setupUi."))
 
             self.tabs.addTab(tab, menu_str)
 
