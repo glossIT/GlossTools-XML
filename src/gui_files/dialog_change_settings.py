@@ -179,8 +179,8 @@ class ChangeSettingsDialog(QDialog):
             for key in self._widgets.keys():
                 self._widget_set_value(key, settings_get(key))
         else:
-            for key, value in settings_dict.items():
-                self._widget_set_value(key, value)
+            for key in self._widgets.keys():
+                self._widget_set_value(key, settings_dict[key])
 
     def _save_settings(self):
         """
