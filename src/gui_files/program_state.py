@@ -4,6 +4,7 @@ from PIL import Image, ImageEnhance
 from PySide6.QtCore import Signal, QObject, QTimer, Slot
 from pyqttoast import ToastPreset
 
+from constants import IntConstants
 from xml_extraction import METSBook
 from glossit_connect_glosses import ConnectedPair, Word
 from glossit_dataclasses import GlossLine
@@ -13,7 +14,7 @@ from .graphics import construct_connection_graphics_from_connector, construct_wo
 from .graphics_item import GraphicsItem
 from .logger import LoggerSingleton
 from .cyclic_access import CyclicCounter, CyclicList
-from .settings import SettingsKey, settings_get
+from .settings import Settings, settings_get
 from .undo_redo import UndoRedoState, UndoRedoList
 from .spatial_database import SpatialDatabase
 
@@ -129,7 +130,7 @@ class _ProgramState(QObject):
         self._spatial_database: SpatialDatabase | None = None
 
         self.unconnected_gloss_lines: CyclicList | None = None
-        self._undo_redo_list: UndoRedoList = UndoRedoList()
+        self._undo_redo_list: UndoRedoList = UndoRedoList(max_size=IntConstants.MAX_UNDO_REDO_STEPS)
         self._gloss_connection_handler = None
 
         def connector_callback():
@@ -312,19 +313,19 @@ class _ProgramState(QObject):
         enhancer = ImageEnhance.Brightness(
             self.mets_book[self.current_page_index].pageimg
         )
-        self._draw_image = enhancer.enhance(settings_get(SettingsKey.IMAGE_BRIGHTNESS))
+        self._draw_image = enhancer.enhance(settings_get(Settings.IMAGE_BRIGHTNESS))
 
         # contrast
         enhancer = ImageEnhance.Contrast(
             self._draw_image
         )
-        self._draw_image = enhancer.enhance(settings_get(SettingsKey.IMAGE_CONTRAST))
+        self._draw_image = enhancer.enhance(settings_get(Settings.IMAGE_CONTRAST))
 
         # brightness
         enhancer = ImageEnhance.Color(
             self._draw_image
         )
-        self._draw_image = enhancer.enhance(settings_get(SettingsKey.IMAGE_SATURATION))
+        self._draw_image = enhancer.enhance(settings_get(Settings.IMAGE_SATURATION))
 
 
         self._draw_word_gloss_objects = construct_word_and_gloss_graphics_from_mets_page(

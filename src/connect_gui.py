@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence
+from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence, QAction
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 from PySide6.QtCore import Signal, QCoreApplication, QSizeF, QThread, Slot, \
@@ -12,6 +12,7 @@ import umsgpack
 import uuid
 import zlib
 
+from constants import StringConstants, IntConstants
 from glossit_connect_glosses import GlossOnPageConnector
 from gui_files.dialog_change_settings import ChangeSettingsDialog
 from gui_files.dialog_save_on_exit import DialogSaveOnExit
@@ -21,15 +22,9 @@ from gui_files.gloss_connector_manager import ObservableGlossOnPageConnector
 from gui_files.logger import LoggerSingleton
 from gui_files.main_gloss_connector import Ui_MainWindow
 from gui_files.program_state import ProgramStateSingleton
-from gui_files.settings import SettingsKey, settings_get, settings_set, settings_revert_to_default_values
+from gui_files.settings import Settings, settings_get, settings_set, settings_get_default_values
 from gui_files.spatial_database import SpatialDatabase
 from xml_extraction import METSBook
-
-
-# TODO
-class Constants:
-    METS_SCHEMA: str = "./schemas/mets.xsd"
-    TEI_SCHEMA: str = None  # TODO "./schemas/tei.xsd"
 
 
 def show_warning_yesno_dialog(informative_text=""):
@@ -97,6 +92,9 @@ class MainWindow(QMainWindow):
     Attributes:
         show_error_dialog (Signal[str, str]): This signal is emitted when an error message dialog should be displayed.
                                               First string is the title, second string is the error message.
+        enable_buttons (Signal): This signal is emitted if the GUI buttons should be enabled.
+        add_to_recently_accessed (Signal[str]): This signal is emitted when a new filename should be added to the list
+                                                of recently opened files.
         ui (Ui_MainWindow): The user interface associated with the main window.
         settings (QSettings): Stores settings such as window geometry to restore after restarting the software.
         threads (list[ThreadWrapper]): A list of threads that are currently being executed.
@@ -110,7 +108,8 @@ class MainWindow(QMainWindow):
 
     Private Methods:
         _new_project: Opens an OpenProjectFileSelectDialog and initializes the program state singleton accordingly.
-        _open_project: Asks the user to select a glp file and loads it into the program state.
+        _ask_user_open_project: Asks the user to select a glp file and loads it into the program state.
+        _open_project (str): Given a file path, attempts to open the file as a project.
         _save_project (bool): Saves the current project to the previously saved file. If this is the first save,
                        _save_as_project is called.
         _save_as_project (bool): Saves the current project to a file.
@@ -124,20 +123,26 @@ class MainWindow(QMainWindow):
         _close_thread (uuid.UUID): Closes the thread with the passed ID and removes it from the list threads.
         _enable_buttons: Enables all buttons that can only be accessed after a project is loaded or created.
         _show_toast (str, str, ToastPreset): Forwards a show_toast signal to the UI on the main thread.
+        _update_recently_accessed: Updates the context menu of recently accessed files.
+        _add_to_recently_accessed (str): Adds a file path to the recently accessed files setting.
     """
     show_error_dialog = Signal(str, str)
+    enable_buttons = Signal()
+    add_to_recently_accessed = Signal(str)
 
     def __init__(self):
         super().__init__()
 
         self.show_error_dialog.connect(self._show_error_dialog)
+        self.enable_buttons.connect(self._enable_buttons)
+        self.add_to_recently_accessed.connect(self._add_to_recently_accessed)
 
         program_state = ProgramStateSingleton().program_state
         program_state._main_window = self
 
-        QCoreApplication.setOrganizationName("GlossIT")
-        QCoreApplication.setApplicationName("GlossIT Gloss Connector")
-        QCoreApplication.setOrganizationDomain("https://glossit.uni-graz.at")
+        QCoreApplication.setOrganizationName(StringConstants.ORGANIZATION)
+        QCoreApplication.setApplicationName(StringConstants.APPLICATION)
+        QCoreApplication.setOrganizationDomain(StringConstants.DOMAIN)
         self.setWindowIcon(program_state.icon)
 
         self.ui = Ui_MainWindow()
@@ -147,25 +152,29 @@ class MainWindow(QMainWindow):
         program_state.show_toast.connect(self._show_toast)
 
         # Check if all settings are set, otherwise reset them to default values
-        for key in SettingsKey:
-            if settings_get(key) is None:
-                settings_revert_to_default_values()
-                LoggerSingleton().logger.log_warning(f"Invalid setting value '{settings_get(key)}' for key '{key}'. "
-                                                     f"Revert all settings to default.")
-                break
+        for setting in Settings:
+            if settings_get(setting) is None:
+                default_values = settings_get_default_values()
+                if setting in default_values:
+                    settings_set(setting, default_values[setting])
+                    LoggerSingleton().logger.log_warning(f"Invalid setting value '{settings_get(setting)}' for key"
+                                                         f" '{setting.key}'. Revert setting to default.")
 
         # Load window geometry
-        self.restoreGeometry(settings_get(SettingsKey.GEOMETRY))
-        self.restoreState(settings_get(SettingsKey.WINDOW_STATE))
+        self.restoreGeometry(settings_get(Settings.GEOMETRY))
+        self.restoreState(settings_get(Settings.WINDOW_STATE))
+
+        # Update recently accessed files
+        self._update_recently_accessed()
 
         # Set debug logging
-        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
+        LoggerSingleton().logger.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
 
         # connect buttons to actions
         self.ui.actionNewProject.triggered.connect(self._new_project)
         self.ui.actionNewProject.setShortcut(QKeySequence("Ctrl+N"))
 
-        self.ui.actionOpenProject.triggered.connect(self._open_project)
+        self.ui.actionOpenProject.triggered.connect(self._ask_user_open_project)
         self.ui.actionOpenProject.setShortcut(QKeySequence("Ctrl+O"))
 
         self.ui.actionSaveProject.triggered.connect(self._save_project)
@@ -244,8 +253,8 @@ class MainWindow(QMainWindow):
                 self._save_project(exit_after=True)
                 return
 
-        settings_set(SettingsKey.GEOMETRY, self.saveGeometry())
-        settings_set(SettingsKey.WINDOW_STATE, self.saveState())
+        settings_set(Settings.GEOMETRY, self.saveGeometry())
+        settings_set(Settings.WINDOW_STATE, self.saveState())
         event.accept()
 
     def thread_function(
@@ -342,27 +351,33 @@ class MainWindow(QMainWindow):
                     tqdm_progress=loading_window_content.callback_tqdm
                 )
 
+                # Now, we allow saving, exporting, and going to previous/next pages
+                self.enable_buttons.emit()
+
             self.thread_function(on_new, loading_window_content=loading_window_content)
 
-            # Now, we allow saving, exporting, and going to previous/next pages
-            self._enable_buttons()
-
-    def _open_project(self):
+    def _ask_user_open_project(self):
         """
         Asks the user to select a *.glp file and loads it into the program state.
         """
-        LoggerSingleton().logger.log_info(f"MainWindow._open_project()")
+        LoggerSingleton().logger.log_info(f"MainWindow._ask_user_open_project()")
         program_state = ProgramStateSingleton().program_state
 
         # get path of where the file should be saved
         load_path, _ = QFileDialog.getOpenFileName(
             self,
             caption="Open GlossIT Project File",
-            filter="GlossIT Project File (*.glp);;All Files (*.*)"
+            filter=f"GlossIT Project File (*.{StringConstants.PROJECT_FILE_EXTENSION.value});;All Files (*.*)"
         )
         LoggerSingleton().logger.log_info(f"User selected model path {load_path}")
+
+        self._open_project(load_path)
+
+    def _open_project(self, load_path: str):
         if load_path is not None and load_path != "":
             loading_window_content = LoadingDialogContent()
+
+            program_state = ProgramStateSingleton().program_state
 
             def on_load():
                 loading_window_content.status_text = "Please wait..."
@@ -418,10 +433,12 @@ class MainWindow(QMainWindow):
 
                 program_state.has_unsaved_changes = False
 
-            self.thread_function(on_load, loading_window_content=loading_window_content)
+                # Finally, add the opened file path to the recently opened files
+                self.add_to_recently_accessed.emit(load_path)
+                # Now, we allow saving, exporting, and going to previous/next pages
+                self.enable_buttons.emit()
 
-            # Now, we allow saving, exporting, and going to previous/next pages
-            self._enable_buttons()
+            self.thread_function(on_load, loading_window_content=loading_window_content)
 
     def _save_project(self, exit_after: bool = False):
         """
@@ -446,14 +463,15 @@ class MainWindow(QMainWindow):
         program_state = ProgramStateSingleton().program_state
         default_filename = program_state.save_file_path
         if default_filename is None:
-            default_filename = os.path.join(os.path.dirname(program_state.path_to_mets), "project.glp")
+            default_filename = os.path.join(os.path.dirname(program_state.path_to_mets),
+                                            f"project.{StringConstants.PROJECT_FILE_EXTENSION.value}")
 
         # get path of where the file should be saved
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             caption="Save GlossIT Project File",
             dir=default_filename,
-            filter="GlossIT Project File (*.glp);;All Files (*.*)"
+            filter=f"GlossIT Project File (*.{StringConstants.PROJECT_FILE_EXTENSION.value});;All Files (*.*)"
         )
         self._save_project_to_path(save_path, exit_after=exit_after)
 
@@ -467,7 +485,7 @@ class MainWindow(QMainWindow):
         program_state = ProgramStateSingleton().program_state
         if save_path is not None and save_path != "":
             if save_path.split(".")[-1] != "glp":
-                save_path += ".glp"
+                save_path += f".{StringConstants.PROJECT_FILE_EXTENSION.value}"
             program_state.save_file_path = save_path
             loading_window_content = LoadingDialogContent()
 
@@ -504,6 +522,9 @@ class MainWindow(QMainWindow):
                     return
                 # Update the status of the saved changes
                 program_state.has_unsaved_changes = False
+
+                # Finally, add the saved file path to the recently opened files
+                self.add_to_recently_accessed.emit(save_path)
 
             self.thread_function(on_save, loading_window_content=loading_window_content, exit_after=exit_after)
 
@@ -750,7 +771,7 @@ class MainWindow(QMainWindow):
                 settings_set(key, value)
 
         program_state = ProgramStateSingleton().program_state
-        LoggerSingleton().logger.enable_debug_logging(settings_get(SettingsKey.DEBUG_ENABLED))
+        LoggerSingleton().logger.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
         if program_state.draw_image is not None:
             program_state.construct_current_page_graphics()
 
@@ -769,6 +790,7 @@ class MainWindow(QMainWindow):
             # Now, wait for the OS thread to fully terminate before dropping the last reference.
             entry["thread"].wait()
 
+    @Slot()
     def _enable_buttons(self):
         """
         Enables all buttons that can only be accessed after a project is loaded or created.
@@ -790,6 +812,60 @@ class MainWindow(QMainWindow):
         Forwards a show_toast signal to the UI on the main thread.
         """
         self.ui.show_toast(toast_title, toast_text, toast_preset)
+
+    def _update_recently_accessed(self):
+        """
+        Updates the context menu of recently accessed files.
+        """
+
+        # Get unique and valid recent files
+        ext = "." + StringConstants.PROJECT_FILE_EXTENSION
+        recent_files = [fname for fname in settings_get(Settings.OPEN_RECENT) if
+                        os.path.exists(fname) and fname.lower()[-len(ext):] == ext]
+        # Save back valid recent files
+        settings_set(Settings.OPEN_RECENT, recent_files)
+
+        # Clear actions and add new actions according to recent files
+        self.ui.menuOpenRecentProject.clear()
+        for filename in recent_files:
+            action = QAction(filename, self.centralWidget())
+            action.triggered.connect(
+                lambda checked=None, fname=filename: [
+                    LoggerSingleton().logger.log_user_interaction(f"Open recent file action {fname} triggered."),
+                    self._open_project(fname)
+                ]
+            )
+            self.ui.menuOpenRecentProject.addAction(action)
+
+        if len(recent_files) > 0:
+            self.ui.menuOpenRecentProject.setEnabled(True)
+        else:
+            self.ui.menuOpenRecentProject.setEnabled(False)
+
+    @Slot(str)
+    def _add_to_recently_accessed(self, path: str):
+        """
+        Adds a file path to the recently accessed files setting.
+        :param path: Path to add.
+        """
+        recent_files = settings_get(Settings.OPEN_RECENT)
+        abspath = os.path.abspath(path)
+
+        # If the file is already present, delete it from the list, as it will be inserted at first position later
+        try:
+            index = recent_files.index(abspath)
+            del recent_files[index]
+        except ValueError:
+            pass
+
+        # Insert at first position
+        recent_files.insert(0, abspath)
+
+        if len(recent_files) > IntConstants.MAX_LENGTH_RECENTLY_OPENED_FILES:
+            recent_files.pop()
+
+        settings_set(Settings.OPEN_RECENT, recent_files)
+        self._update_recently_accessed()
 
 
 def start_gui():
