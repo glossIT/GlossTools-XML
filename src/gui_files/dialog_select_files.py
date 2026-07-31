@@ -99,7 +99,7 @@ class OpenProjectFileSelectDialog(QDialog):
                     caption="Open METS File",
                     filter="METS XML File (*METS.xml);;XML File (*.xml);;All Files (*.*)"
                 )
-            #mets_schema = xmlschema.XMLSchema(Constants.METS_SCHEMA)
+            #mets_schema = xmlschema.XMLSchema(StringConstants.METS_SCHEMA)
             proceed = True
             #if not mets_schema.is_valid(path):
             #    proceed = show_warning_yesno_dialog(
@@ -123,8 +123,8 @@ class OpenProjectFileSelectDialog(QDialog):
                 filter="XML File (*.xml);;All Files (*.*)"
             )
             proceed = True
-            #if Constants.TEI_SCHEMA:
-            #    tei_schema = xmlschema.XMLSchema(Constants.TEI_SCHEMA)
+            #if StringConstants.TEI_SCHEMA:
+            #    tei_schema = xmlschema.XMLSchema(StringConstants.TEI_SCHEMA)
             #    if not tei_schema.is_valid(path):
             #        proceed = show_warning_yesno_dialog(
             #            informative_text="The file you selected does not match the GlossIT TEI schema. Proceed?"

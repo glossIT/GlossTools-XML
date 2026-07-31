@@ -4,6 +4,7 @@ from PIL import Image, ImageEnhance
 from PySide6.QtCore import Signal, QObject, QTimer, Slot
 from pyqttoast import ToastPreset
 
+from constants import IntConstants
 from xml_extraction import METSBook
 from glossit_connect_glosses import ConnectedPair, Word
 from glossit_dataclasses import GlossLine
@@ -13,7 +14,8 @@ from .graphics import construct_connection_graphics_from_connector, construct_wo
 from .graphics_item import GraphicsItem
 from .logger import LoggerSingleton
 from .cyclic_access import CyclicCounter, CyclicList
-from .undo_redo import UndoRedoList
+from .settings import Settings, settings_get
+from .undo_redo import UndoRedoState, UndoRedoList
 from .spatial_database import SpatialDatabase
 
 
@@ -24,9 +26,10 @@ class _ProgramState(QObject):
 
     Properties:
         data_changed (Signal): Signal that is emitted when data has been changed in the program state.
+                               NEVER emit when not in the main loop! Use _schedule_emit instead.
         show_toast (Signal[str, str, ToastPreset]): Signal that is emitted when a toast should be displayed.
                                                     The arguments are title, message, and ToastPreset.
-        _request_debounce (Signal): Signal that is emitted when the debounce is requested.
+        _request_debounce (Signal): Signal that is emitted when the debouncing is requested.
 
         has_unsaved_changes (bool): If True, the program state has unsaved changes.
         icon (QIcon | None): Stores the application icon.
@@ -59,6 +62,7 @@ class _ProgramState(QObject):
         go_to_page (int): Sets the page counter object to the indicated page index. Call from separate thread!
         update_display_text (bool): Indicates whether the text of gloss/word objects should be drawn and redraws
                                     the page if needed. Call from separate thread!
+        update_connection_objects: Updates the connection graphics objects. Call from separate thread!
         construct_current_page_graphics: Updates the graphics for the currently selected page for display.
                                          Call from separate thread!
         page_index_is_valid (int): Check if the given page index is valid.
@@ -126,7 +130,7 @@ class _ProgramState(QObject):
         self._spatial_database: SpatialDatabase | None = None
 
         self.unconnected_gloss_lines: CyclicList | None = None
-        self._undo_redo_list: UndoRedoList = UndoRedoList()
+        self._undo_redo_list: UndoRedoList = UndoRedoList(max_size=IntConstants.MAX_UNDO_REDO_STEPS)
         self._gloss_connection_handler = None
 
         def connector_callback():
@@ -181,7 +185,7 @@ class _ProgramState(QObject):
 
         self.clear_metsbook_cache()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element([])
+        self._undo_redo_list.add_element(UndoRedoState())
 
     def to_dict(self, tqdm_progress: tqdm.tqdm) -> dict:
         """
@@ -225,8 +229,12 @@ class _ProgramState(QObject):
             self._gloss_connection_handler[self.current_page_index].get_unconnected_gloss_line_ids()
         )
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("from_save_file")
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections
+            )
+        )
+        self._schedule_emit("from_save_file")
 
     def go_to_next_page(self):
         """
@@ -236,8 +244,12 @@ class _ProgramState(QObject):
         self._page_counter.next_index()
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("go_to_next_page")
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections,
+            )
+        )
+        self._schedule_emit("go_to_next_page")
 
     def go_to_previous_page(self):
         """
@@ -247,8 +259,12 @@ class _ProgramState(QObject):
         self._page_counter.previous_index()
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("go_to_previous_page")
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections,
+            )
+        )
+        self._schedule_emit("go_to_previous_page")
 
     def go_to_page(self, page_idx: int):
         """
@@ -259,8 +275,12 @@ class _ProgramState(QObject):
         self._page_counter.go_to_index(page_idx)
         self.construct_current_page_graphics()
         self._undo_redo_list.reset()
-        self._undo_redo_list.add_element(self._gloss_connection_handler[self.current_page_index].connections)
-        self.data_changed.emit("go_to_page")
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self._gloss_connection_handler[self.current_page_index].connections
+            )
+        )
+        self._schedule_emit("go_to_page")
 
     def update_display_text(self, value: bool):
         """
@@ -273,15 +293,41 @@ class _ProgramState(QObject):
             self._schedule_emit("display_text")
             self.construct_current_page_graphics()
 
+    def update_connection_objects(self):
+        """
+        Updates the connection objects. Call from separate thread!
+        """
+        LoggerSingleton().logger.log_info(f"_ProgramState.update_connection_objects()")
+        self._draw_connection_objects = construct_connection_graphics_from_connector(
+            self.gloss_connection_handler[self.current_page_index]
+        )
+        self._schedule_emit("update_connection_objects")
+
     def construct_current_page_graphics(self):
         """
         Updates the graphics for the currently selected page for display. Call from separate thread!
         """
         LoggerSingleton().logger.log_info(f"_ProgramState.construct_current_page_graphics()")
+
+        # brightness
         enhancer = ImageEnhance.Brightness(
             self.mets_book[self.current_page_index].pageimg
         )
-        self._draw_image = enhancer.enhance(0.67)
+        self._draw_image = enhancer.enhance(settings_get(Settings.IMAGE_BRIGHTNESS))
+
+        # contrast
+        enhancer = ImageEnhance.Contrast(
+            self._draw_image
+        )
+        self._draw_image = enhancer.enhance(settings_get(Settings.IMAGE_CONTRAST))
+
+        # brightness
+        enhancer = ImageEnhance.Color(
+            self._draw_image
+        )
+        self._draw_image = enhancer.enhance(settings_get(Settings.IMAGE_SATURATION))
+
+
         self._draw_word_gloss_objects = construct_word_and_gloss_graphics_from_mets_page(
             self.mets_book[self.current_page_index],
             display_text=self._display_text
@@ -291,7 +337,7 @@ class _ProgramState(QObject):
         )
         self._update_unconnected_gloss_lines()
         self._currently_selected_object = None
-        self.data_changed.emit("construct_current_page_graphics")
+        self._schedule_emit("construct_current_page_graphics")
 
     def page_index_is_valid(self, page_idx: int) -> bool:
         """
@@ -324,9 +370,15 @@ class _ProgramState(QObject):
         """
         LoggerSingleton().logger.log_info(f"_ProgramState.undo()")
         if self._undo_redo_list.has_elements_before():
+            previous_state = self._undo_redo_list.previous_element()
+
+            # update connections
             self._gloss_connection_handler[
                 self.current_page_index
-            ].connections = self._undo_redo_list.previous_element()
+            ].connections = previous_state.connections
+            # update object selection
+            self._currently_selected_object = previous_state.selection
+            # update view
             self._draw_connection_objects = construct_connection_graphics_from_connector(
                 self._gloss_connection_handler[self._page_counter.current_index]
             )
@@ -338,7 +390,13 @@ class _ProgramState(QObject):
         """
         LoggerSingleton().logger.log_info(f"_ProgramState.redo()")
         if self._undo_redo_list.has_elements_after():
-            self._gloss_connection_handler[self.current_page_index].connections = self._undo_redo_list.next_element()
+            next_state = self._undo_redo_list.next_element()
+
+            # update connections
+            self._gloss_connection_handler[self.current_page_index].connections = next_state.connections
+            # update object selection
+            self._currently_selected_object = next_state.selection
+            # update view
             self._draw_connection_objects = construct_connection_graphics_from_connector(
                 self._gloss_connection_handler[self._page_counter.current_index]
             )
@@ -375,16 +433,23 @@ class _ProgramState(QObject):
             # 4) the two objects to be connected are not allowed to result in some kind of circular connection,
             #    e.g., a -> b -> c -> a
 
-            new_connection = ConnectedPair(previous_object, current_object)
+            connection_to_add = ConnectedPair(previous_object, current_object)
+            isolated_glosses = self.gloss_connection_handler[self.current_page_index].isolated_glosses
 
             # 1) previous object is not a gloss
             if not isinstance(previous_object, GlossLine):
                 pass
             # 2) previous and current object are the same
             elif previous_object == current_object:
-                pass
-            # 3) previous object already is start of another connection
-            elif previous_object in all_start:
+                if current_object not in isolated_glosses:
+                    self.add_to_isolated_glosses(current_object)
+                    # remove selection, since no other object can be appended anyway
+                    self.currently_selected_object = None
+                else:
+                    self.show_toast.emit("Error: Gloss ",
+                                         f"{previous_object} is already marked as isolated", ToastPreset.ERROR)
+            # 3) previous object already is start of another connection or an isolated gloss line
+            elif previous_object in all_start + isolated_glosses:
                 self.show_toast.emit("Error: Can't connect",
                                      f"{previous_object} already points to another object", ToastPreset.ERROR)
             # 4) the two objects would form a circular connection
@@ -396,15 +461,18 @@ class _ProgramState(QObject):
             else:
                 self.gloss_connection_handler.append_connection_to_connector(
                     connector_idx=self.current_page_index,
-                    connection=new_connection
+                    connection=connection_to_add
                 )
 
-                # in this case, also update the undo_redo list!
-                self._undo_redo_list.add_element(self.gloss_connection_handler[self.current_page_index].connections)
-
-        self._draw_connection_objects = construct_connection_graphics_from_connector(
-            self.gloss_connection_handler[self.current_page_index]
+        # Update the undo_redo list with the (possibly new) connections and selected object!
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=self.gloss_connection_handler[self.current_page_index].connections,
+                selection=current_object
+            )
         )
+
+        self.update_connection_objects()
 
         self._schedule_emit("select_or_connect_on_coordinate")
 
@@ -427,12 +495,31 @@ class _ProgramState(QObject):
             self.current_page_index
         ].connections = new_connections
 
-        self._undo_redo_list.add_element(new_connections)
-
-        self._draw_connection_objects = construct_connection_graphics_from_connector(
-            self.gloss_connection_handler[self.current_page_index]
+        self._undo_redo_list.add_element(
+            UndoRedoState(
+                connections=new_connections,
+                selection=self.currently_selected_object
+            )
         )
+
+        self.update_connection_objects()
         self._schedule_emit("remove_connection")
+
+    def add_to_isolated_glosses(self, gloss: GlossLine):
+        LoggerSingleton().logger.log_info(f"_ProgramState.add_to_isolated_glosses(gloss={gloss})")
+        if self.current_page_index is not None:
+            self.gloss_connection_handler[self.current_page_index].isolated_glosses.append(gloss)
+            self.gloss_connection_handler[self.current_page_index].has_unsaved_changes = True
+            self._schedule_emit("add_to_isolated_glosses")
+
+    def remove_from_isolated_glosses(self, idx: int):
+        LoggerSingleton().logger.log_info(f"_ProgramState.remove_from_isolated_glosses(idx={idx})")
+        if self.current_page_index is not None and idx < len(
+            self.gloss_connection_handler[self.current_page_index].isolated_glosses
+        ):
+            del self.gloss_connection_handler[self.current_page_index].isolated_glosses[idx]
+            self.gloss_connection_handler[self.current_page_index].has_unsaved_changes = True
+            self._schedule_emit("remove_from_isolated_glosses")
 
     def clear_metsbook_cache(self):
         """
@@ -492,7 +579,7 @@ class _ProgramState(QObject):
             self._schedule_emit("has_unsaved_changes")
 
     @property
-    def mets_book(self):
+    def mets_book(self) -> METSBook:
         return self._mets_book
 
     @mets_book.setter
@@ -503,16 +590,14 @@ class _ProgramState(QObject):
             self._schedule_emit("mets_book")
 
     @property
-    def gloss_connection_handler(self):
+    def gloss_connection_handler(self) -> GlossConnectionHandler:
         return self._gloss_connection_handler
 
     @gloss_connection_handler.setter
     def gloss_connection_handler(self, value):
         if self._gloss_connection_handler != value:
             self._gloss_connection_handler = value
-            self._draw_connection_objects = construct_connection_graphics_from_connector(
-                self._gloss_connection_handler[self._page_counter.current_index]
-            )
+            self.update_connection_objects()
             self._schedule_emit("gloss_connection_handler")
 
     @property
@@ -526,7 +611,7 @@ class _ProgramState(QObject):
             self._schedule_emit(f"currently_selected_object ({value})")
 
     @property
-    def draw_image(self):
+    def draw_image(self) -> Image.Image:
         return self._draw_image
 
     @draw_image.setter
@@ -536,7 +621,7 @@ class _ProgramState(QObject):
             self._schedule_emit("draw_image")
 
     @property
-    def draw_word_gloss_objects(self):
+    def draw_word_gloss_objects(self) -> list[GraphicsItem]:
         return self._draw_word_gloss_objects
 
     @draw_word_gloss_objects.setter
@@ -546,7 +631,7 @@ class _ProgramState(QObject):
             self._schedule_emit("draw_word_gloss_objects")
 
     @property
-    def draw_connection_objects(self):
+    def draw_connection_objects(self) -> list[GraphicsItem]:
         return self._draw_connection_objects
 
     @draw_connection_objects.setter
@@ -556,7 +641,7 @@ class _ProgramState(QObject):
             self._schedule_emit("draw_connection_objects")
 
     @property
-    def spatial_database(self):
+    def spatial_database(self) -> SpatialDatabase:
         return self._spatial_database
 
     @spatial_database.setter
@@ -566,17 +651,17 @@ class _ProgramState(QObject):
             self._schedule_emit("spatial_database")
 
     @property
-    def current_page_index(self):
+    def current_page_index(self) -> int | None:
         if self._page_counter is not None:
             return self._page_counter.current_index
 
     @property
-    def number_of_pages(self):
+    def number_of_pages(self) -> int | None:
         if self._page_counter is not None:
             return self._page_counter.number_of_indices
 
     @property
-    def page_counter_text(self):
+    def page_counter_text(self) -> str:
         return str(self._page_counter) if self._page_counter is not None else ""
 
 

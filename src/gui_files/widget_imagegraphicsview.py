@@ -6,8 +6,6 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 from glossit_connect_glosses import ConnectedPair
 from glossit_dataclasses import GlossLine
 
-from .cyclic_access import CyclicList
-from .graphics import construct_connection_graphics_from_connector
 from .logger import LoggerSingleton
 from .program_state import ProgramStateSingleton
 
@@ -30,11 +28,11 @@ class ImageGraphicsView(QGraphicsView):
     def __init__(self, parent: "MainWindow" =None):
         super().__init__(parent.centralwidget)
         self.main_window = parent.main_window
-        self.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setRenderHint(QPainter.Antialiasing)
-        self.setRenderHint(QPainter.SmoothPixmapTransform)
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
 
         self.scene = QGraphicsScene(self)
 
@@ -58,10 +56,12 @@ class ImageGraphicsView(QGraphicsView):
             f")"
         )
 
+        program_state = ProgramStateSingleton().program_state
+
         if event.button() == Qt.MouseButton.RightButton:
             def on_select_object(x, y):
                 def select_object():
-                    ProgramStateSingleton().program_state.select_or_connect_on_coordinate(x, y)
+                    program_state.select_or_connect_on_coordinate(x, y)
                 return select_object
             self.main_window.thread_function(on_select_object(scene_x, scene_y))
         else:

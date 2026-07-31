@@ -189,6 +189,7 @@ class GlossOnPageConnector:
 
     Properties:
         connections (list[ConnectedPair]): The list of individual connections on the page.
+        isolated_glosses (list[GlossLine]): The list of glosses on the page that do not relate to other objects.
         clean_tei (BeautifulSoup): The page TEI, but all connection info and IDs are stripped away.
         page (METSPage): Read-only. METSPage with (or soon to have) gloss/reference/word connections.
         connection_chains (list[list[ConnectedPair]]): Read-only. The connections which are grouped into chains.
@@ -234,6 +235,7 @@ class GlossOnPageConnector:
         self._page = page
         self._connections = self.extract_connections(self._page)
         self._clean_tei = self.remove_connections(self._page.tei)
+        self._isolated_glosses = []
 
     @property
     def connections(self):
@@ -248,7 +250,7 @@ class GlossOnPageConnector:
         return self._page
 
     @property
-    def clean_tei(self):
+    def clean_tei(self) -> BeautifulSoup:
         return self._clean_tei
 
     @clean_tei.setter
@@ -259,20 +261,31 @@ class GlossOnPageConnector:
     def connection_chains(self):
         return self._chain_connections_together(self._connections)
 
+    @property
+    def isolated_glosses(self):
+        return self._isolated_glosses
+
+    @isolated_glosses.setter
+    def isolated_glosses(self, other):
+        self._isolated_glosses = other
+
     def get_unconnected_gloss_line_ids(self) -> list[str]:
         """
-        Gets all gloss lines on the page that are not featured in a connection.
+        Gets all gloss lines on the page that are not featured in a connection or isolated.
         :return: Unconnected gloss lines.
         """
-        all_gloss_lines = set([line.id for line in self._page.get_gloss_lines()])
+        gloss_lines = [line for line in self._page.get_gloss_lines() if line not in self._isolated_glosses]
+        coordinate_dict = {line.id: line.coordinates.exterior.coords[0] for line in gloss_lines}
+        all_gloss_lines = set([line.id for line in gloss_lines])
 
         connected_objects = set()
         for connection in self._connections:
             connected_objects.add(connection.start.id)
             connected_objects.add(connection.end.id)
 
-        unconnected_gloss_lines = all_gloss_lines - connected_objects
-        return list(unconnected_gloss_lines)
+        unconnected_gloss_lines = list(all_gloss_lines - connected_objects)
+        unconnected_gloss_lines.sort(key=lambda gloss_id: (coordinate_dict[gloss_id][1], coordinate_dict[gloss_id][0]))
+        return unconnected_gloss_lines
 
     def check_if_connection_results_in_circular_relation(self, connection: ConnectedPair) -> bool:
         """
@@ -522,7 +535,10 @@ class GlossOnPageConnector:
         """
         assert cls.are_connections_acyclic(page_connections)
 
-        temp_connections = copy.deepcopy(page_connections)
+        # Shallow copy only: the ConnectedPair objects are never mutated here, they are just
+        # regrouped into chains. A deepcopy would clone the entire METSPage object graph
+        # (TEI tree, all lines and words) reachable via connection.start.page.
+        temp_connections = list(page_connections)
         connection_cycles = []
         for idx in range(len(temp_connections) - 1, -1, -1):
             connection = temp_connections[idx]

@@ -2,6 +2,7 @@ import logging
 import threading
 import traceback
 
+from gui_files.settings import Settings, settings_get
 
 # Initialize custom logging levels
 USER_INTERACTION = 25
@@ -31,7 +32,8 @@ class _Logger:
         logger (logging.Logger): Logger instance
 
     Methods:
-        log_exception(Exception): Logs an exception.
+        enable_debug_logging (bool): If True, enables verbose debug logging, else disables it.
+        log_exception (Exception): Logs an exception.
         log_warning (str): Logs a warning message.
         log_error (str): Logs an error message.
         log_info (str): Logs an info message.
@@ -45,16 +47,12 @@ class _Logger:
         :param log_file: The file where logs will be written.
         """
         self.logger = logging.getLogger("ExceptionLogger")
-        logging_level = logging.WARNING
-        self.logger.setLevel(logging_level)  # Set the logging level to ERROR
 
         # Create a file handler to write logs to a file
         file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging_level)
 
         # Create a stream handler to log to stderr
         stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(logging_level)
 
         # Create a formatter for timestamps and log messages
         formatter = logging.Formatter(
@@ -67,6 +65,19 @@ class _Logger:
         # Add the file handler to the logger
         self.logger.addHandler(file_handler)
         self.logger.addHandler(stream_handler)
+
+        self.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
+
+    def enable_debug_logging(self, enable: bool):
+        """
+        If enable is True, enables verbose debug logging.
+        :param enable: True if verbose debug logging is enabled, else False.
+        """
+        logging_level = logging.DEBUG if enable else logging.WARNING
+        self.logger.setLevel(logging_level)
+        for handler in self.logger.handlers:
+            handler.setLevel(logging_level)
+
 
     def log_exception(self, exception):
         """

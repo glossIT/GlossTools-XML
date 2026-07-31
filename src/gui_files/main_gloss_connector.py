@@ -9,21 +9,21 @@
 ################################################################################
 
 from PySide6.QtCore import (Slot, QCoreApplication, QMetaObject, QRect,
-                            QSize, Qt, QRectF, QTimer)
-from PySide6.QtGui import (QIcon, QGuiApplication)
+                            Qt, QRectF, QTimer)
+from PySide6.QtGui import (QAction, QIcon, QGuiApplication)
 from PySide6.QtWidgets import (QGridLayout, QHBoxLayout,
                                QLabel, QMainWindow, QMenuBar,
                                QPushButton, QSizePolicy, QStatusBar, QTreeWidget,
-                               QTreeWidgetItem, QVBoxLayout, QWidget, QCheckBox)
+                               QTreeWidgetItem, QVBoxLayout, QWidget, QCheckBox, QDockWidget, QMenu)
 from pyqttoast import Toast, ToastPosition, ToastPreset
 from coordinate_manipulation import rectangle_xywh
 from glossit_connect_glosses import ConnectedPair, Word
 from glossit_dataclasses import GlossLine, LineType
 
-from .graphics import construct_connection_graphics_from_connector, \
-    construct_currently_selected_object_graphic
+from .graphics import construct_currently_selected_object_graphic
 from .logger import LoggerSingleton
-from .widgets_modified import ClickableLabel, FocusableLineEdit
+from .widget_chainmanipulation import ChainManipulation
+from .widgets import ClickableLabel, FocusableLineEdit, ToolTipMenu
 from .program_state import ProgramStateSingleton
 from .widget_imagegraphicsview import ImageGraphicsView
 
@@ -36,11 +36,13 @@ class Ui_MainWindow(object):
 
     Attributes:
         main_window (MainWindow): Reference to the parent main window.
-        buttonNewProject (QPushButton): Pushing it creates a new project.
-        buttonOpenProject (QPushButton): Pushing it loads a project.
-        buttonSaveProject (QPushButton): Pushing it saves the project including connections as TEI.
-        buttonExportTei (QPushButton): Pushing it exports the connections independent of TEI.
-        buttonExportMets (QPushButton): Pushing it exports the PageXML, Image and METS file.
+        actionNewProject (QPushButton): Pushing it creates a new project.
+        actionOpenProject (QPushButton): Pushing it loads a project.
+        actionSaveProject (QPushButton): Pushing it saves the project including connections as TEI.
+        actionExportTei (QPushButton): Pushing it exports the connections independent of TEI.
+        actionExportMets (QPushButton): Pushing it exports the PageXML, Image and METS file.
+        actionExportView (QPushButton): Pushing it exports the view as a PDF file.
+        actionOpenSettings (QPushButton): Pushing it opens the Preferences dialog.
         buttonPreviousPage (QPushButton): Pushing it goes to the previous METSBook page.
         lineEditCurrentPage (QLabel): Displays the current page.
         buttonNextPage (QPushButton): Pushing it goes to the next METSBook page.
@@ -95,87 +97,121 @@ class Ui_MainWindow(object):
         self.buttonNextPage.setObjectName(u"buttonNextPage")
 
         self.horizontalLayout_2.addWidget(self.buttonNextPage)
-        self.gridLayout.addLayout(self.horizontalLayout_2, 2, 0, 1, 1)
-
-        self.checkboxDisplayText = QCheckBox(self.centralwidget)
-        self.checkboxDisplayText.setObjectName(u"checkboxDisplayText")
+        self.gridLayout.addLayout(self.horizontalLayout_2, 1, 0, 1, 1)
 
         self.textOptionsLayout = QVBoxLayout()
         self.textOptionsLayout.setObjectName(u"textOptionsLayout")
+        self.checkboxDisplayText = QCheckBox(self.centralwidget)
+        self.checkboxDisplayText.setObjectName(u"checkboxDisplayText")
         self.textOptionsLayout.addWidget(self.checkboxDisplayText)
-        self.gridLayout.addLayout(self.textOptionsLayout, 3, 0, 1, 1)
+        self.gridLayout.addLayout(self.textOptionsLayout, 2, 0, 1, 1)
 
-        self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        # Menu bar for file and export operations
+        self.menubar = QMenuBar(MainWindow)
+        self.menubar.setObjectName(u"menubar")
+        self.menubar.setGeometry(QRect(0, 0, 544, 23))
 
-        self.buttonNewProject = QPushButton(self.centralwidget)
-        self.buttonNewProject.setToolTip(u"Create a new GlossIT project (Ctrl+N)")
-        self.buttonNewProject.setObjectName(u"buttonNewProject")
-        self.buttonNewProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentNew)))
-        self.buttonNewProject.clicked.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonNewProject.clicked")
+        file_menu = ToolTipMenu("File")
+        self.actionNewProject = QAction(self.centralwidget)
+        self.actionNewProject.setToolTip(u"Create a new GlossIT project")
+        self.actionNewProject.setObjectName(u"actionNewProject")
+        self.actionNewProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentNew)))
+        self.actionNewProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionNewProject.triggered")
         )
-        self.horizontalLayout.addWidget(self.buttonNewProject)
+        file_menu.addAction(self.actionNewProject)
 
-        self.buttonOpenProject = QPushButton(self.centralwidget)
-        self.buttonOpenProject.setToolTip(u"Open a GlossIT project from a file (Ctrl+O)")
-        self.buttonOpenProject.setObjectName(u"buttonOpenProject")
-        self.buttonOpenProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen)))
-        self.buttonOpenProject.clicked.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonOpenProject.clicked")
+        self.actionOpenProject = QAction(self.centralwidget)
+        self.actionOpenProject.setToolTip(u"Open a GlossIT project from a file")
+        self.actionOpenProject.setObjectName(u"actionOpenProject")
+        self.actionOpenProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen)))
+        self.actionOpenProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionOpenProject.triggered")
         )
-        self.horizontalLayout.addWidget(self.buttonOpenProject)
+        file_menu.addAction(self.actionOpenProject)
 
-        self.buttonSaveProject = QPushButton(self.centralwidget)
-        self.buttonSaveProject.setToolTip(u"Save the current GlossIT project (Ctrl+S)")
-        self.buttonSaveProject.setEnabled(False)
-        self.buttonSaveProject.setObjectName(u"buttonSaveProject")
-        self.buttonSaveProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSave)))
-        self.buttonSaveProject.clicked.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonSaveProject.clicked")
-        )
-        self.horizontalLayout.addWidget(self.buttonSaveProject)
+        self.menuOpenRecentProject = QMenu("Open Recent...", self.centralwidget)
+        self.menuOpenRecentProject.setObjectName(u"menuOpenRecentProject")
 
-        self.buttonSaveAsProject = QPushButton(self.centralwidget)
-        self.buttonSaveAsProject.setToolTip(u"Save the current GlossIT project to another file (Ctrl+Shift+S)")
-        self.buttonSaveAsProject.setEnabled(False)
-        self.buttonSaveAsProject.setObjectName(u"buttonSaveAsProject")
-        self.buttonSaveAsProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSaveAs)))
-        self.buttonSaveAsProject.clicked.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonSaveAsProject.clicked")
-        )
-        self.horizontalLayout.addWidget(self.buttonSaveAsProject)
+        file_menu.addMenu(self.menuOpenRecentProject)
 
-        self.buttonReplacePageXml = QPushButton(self.centralwidget)
-        self.buttonReplacePageXml.setToolTip(u"Replace the current PageXML data (Ctrl+R)")
-        self.buttonReplacePageXml.setEnabled(False)
-        self.buttonReplacePageXml.setObjectName(u"buttonReplacePageXml")
-        self.buttonReplacePageXml.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentRevert)))
-        self.buttonReplacePageXml.clicked.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonReplacePageXml.clicked")
+        self.actionSaveProject = QAction(self.centralwidget)
+        self.actionSaveProject.setToolTip(u"Save the current GlossIT project")
+        self.actionSaveProject.setEnabled(False)
+        self.actionSaveProject.setObjectName(u"actionSaveProject")
+        self.actionSaveProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSave)))
+        self.actionSaveProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionSaveProject.triggered")
         )
-        self.horizontalLayout.addWidget(self.buttonReplacePageXml)
+        file_menu.addAction(self.actionSaveProject)
 
-        self.buttonExportTei = QPushButton(self.centralwidget)
-        self.buttonExportTei.setToolTip(u"Export the project to a GlossIT TEI XML file (Ctrl+E)")
-        self.buttonExportTei.setEnabled(False)
-        self.buttonExportTei.setObjectName(u"buttonExportTei")
-        self.buttonExportTei.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplySender)))
-        self.buttonExportTei.clicked.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonExportTei.clicked")
+        self.actionSaveAsProject = QAction(self.centralwidget)
+        self.actionSaveAsProject.setToolTip(u"Save the current GlossIT project to another file")
+        self.actionSaveAsProject.setEnabled(False)
+        self.actionSaveAsProject.setObjectName(u"actionSaveAsProject")
+        self.actionSaveAsProject.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSaveAs)))
+        self.actionSaveAsProject.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionSaveAsProject.triggered")
         )
-        self.horizontalLayout.addWidget(self.buttonExportTei)
+        file_menu.addAction(self.actionSaveAsProject)
 
-        self.buttonExportMets = QPushButton(self.centralwidget)
-        self.buttonExportMets.setToolTip(u"Export the METS, images and PageXML to a folder; "
-                                         u"gloss connections are disregarded (Ctrl+M)")
-        self.buttonExportMets.setEnabled(False)
-        self.buttonExportMets.setObjectName(u"buttonExportMets")
-        self.buttonExportMets.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
-        self.buttonExportMets.clicked.connect(
-            lambda: LoggerSingleton().logger.log_user_interaction("buttonExportMets.clicked")
+        edit_menu = ToolTipMenu("Edit")
+        self.actionReplacePageXml = QAction(self.centralwidget)
+        self.actionReplacePageXml.setToolTip(u"Replace the current PageXML data")
+        self.actionReplacePageXml.setEnabled(False)
+        self.actionReplacePageXml.setObjectName(u"actionReplacePageXml")
+        self.actionReplacePageXml.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentRevert)))
+        self.actionReplacePageXml.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionReplacePageXml.triggered")
         )
-        self.horizontalLayout.addWidget(self.buttonExportMets)
+        edit_menu.addAction(self.actionReplacePageXml)
+
+        self.actionOpenSettings = QAction(self.centralwidget)
+        self.actionOpenSettings.setToolTip(u"Open the Settings Dialog")
+        self.actionOpenSettings.setEnabled(True)
+        self.actionOpenSettings.setObjectName(u"actionOpenSettings")
+        self.actionOpenSettings.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentProperties)))
+        self.actionOpenSettings.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionOpenSettings.triggered")
+        )
+        edit_menu.addAction(self.actionOpenSettings)
+
+        export_menu = ToolTipMenu("Export")
+        self.actionExportTei = QAction(self.centralwidget)
+        self.actionExportTei.setToolTip(u"Export the project to a GlossIT TEI XML file")
+        self.actionExportTei.setEnabled(False)
+        self.actionExportTei.setObjectName(u"actionExportTei")
+        self.actionExportTei.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplySender)))
+        self.actionExportTei.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionExportTei.clicked")
+        )
+        export_menu.addAction(self.actionExportTei)
+
+        self.actionExportMets = QAction(self.centralwidget)
+        self.actionExportMets.setToolTip(u"Export the METS, images and PageXML to a folder; "
+                                         u"gloss connections are disregarded")
+        self.actionExportMets.setEnabled(False)
+        self.actionExportMets.setObjectName(u"actionExportMets")
+        self.actionExportMets.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.MailReplyAll)))
+        self.actionExportMets.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionExportMets.clicked")
+        )
+        export_menu.addAction(self.actionExportMets)
+
+        self.actionExportView = QAction(self.centralwidget)
+        self.actionExportView.setToolTip(u"Export the currently displayed view as a PDF file")
+        self.actionExportView.setEnabled(False)
+        self.actionExportView.setObjectName(u"actionExportView")
+        self.actionExportView.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSend)))
+        self.actionExportView.triggered.connect(
+            lambda: LoggerSingleton().logger.log_user_interaction("actionExportView.clicked")
+        )
+        export_menu.addAction(self.actionExportView)
+
+        self.menubar.addMenu(file_menu)
+        self.menubar.addMenu(edit_menu)
+        self.menubar.addMenu(export_menu)
+        MainWindow.setMenuBar(self.menubar)
 
         self.buttonPreviousPage.setToolTip("Go to previous manuscript page (Ctrl+←)")
         self.buttonPreviousPage.setEnabled(False)
@@ -192,38 +228,22 @@ class Ui_MainWindow(object):
         self.checkboxDisplayText.setText("Display Text")
         self.checkboxDisplayText.setEnabled(False)
 
-        self.gridLayout.addLayout(self.horizontalLayout, 0, 0, 1, 1)
+        # Tree view
+        container = QWidget(self.centralwidget)
 
-        self.verticalLayout = QVBoxLayout()
-        self.verticalLayout.setObjectName(u"verticalLayout")
-        self.label_2 = QLabel(self.centralwidget)
-        self.label_2.setObjectName(u"label_2")
+        self.chainManipulation = ChainManipulation(container)
+        self.chainManipulation.setObjectName(u"chainManipulation")
 
-        self.verticalLayout.addWidget(self.label_2)
-
-        self.treeDisplayChains = QTreeWidget(self.centralwidget)
-        self.treeDisplayChains.setObjectName(u"treeDisplayChains")
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.treeDisplayChains.sizePolicy().hasHeightForWidth())
-        self.treeDisplayChains.setSizePolicy(sizePolicy)
-        self.treeDisplayChains.setMinimumSize(QSize(0, 150))
-
-        self.verticalLayout.addWidget(self.treeDisplayChains)
-
-        self.buttonRemoveChain = QPushButton(self.centralwidget)
-        self.buttonRemoveChain.setToolTip(u"Remove the currently selected connection chain")
-        self.buttonRemoveChain.setObjectName(u"buttonRemoveChain")
-        self.buttonRemoveChain.setEnabled(False)
-        self.buttonRemoveChain.clicked.connect(
+        self.chainManipulation.buttonRemoveChain.setToolTip(u"Remove the currently selected connection chain")
+        self.chainManipulation.buttonRemoveChain.clicked.connect(
             lambda: LoggerSingleton().logger.log_user_interaction("buttonRemoveChain.clicked")
         )
-        self.buttonRemoveChain.setIcon(QIcon(QIcon.fromTheme(QIcon.ThemeIcon.EditClear)))
 
-        self.verticalLayout.addWidget(self.buttonRemoveChain)
-
-        self.gridLayout.addLayout(self.verticalLayout, 4, 0, 1, 1)
+        dock = QDockWidget("Connection Chains:", self.centralwidget)
+        dock.setObjectName("connectionChainsDock")
+        dock.setWidget(container)
+        dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.main_window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
         self.imageGraphicsView = ImageGraphicsView(self)
         self.imageGraphicsView.setObjectName(u"imageGraphicsView")
@@ -232,8 +252,7 @@ class Ui_MainWindow(object):
         sizePolicy1.setVerticalStretch(0)
         sizePolicy1.setHeightForWidth(self.imageGraphicsView.sizePolicy().hasHeightForWidth())
         self.imageGraphicsView.setSizePolicy(sizePolicy1)
-        self.imageGraphicsView.setMinimumSize(QSize(0, 300))
-        self.gridLayout.addWidget(self.imageGraphicsView, 1, 0, 1, 1)
+        self.gridLayout.addWidget(self.imageGraphicsView, 0, 0, 1, 1)
 
         self.horizontalLayoutUndoRedo = QHBoxLayout()
         self.buttonUndo = QPushButton(self.centralwidget)
@@ -248,13 +267,9 @@ class Ui_MainWindow(object):
         self.buttonRedo.setToolTip(u"Redo the last action (Ctrl+Y or Ctrl+Shift+Z)")
         self.buttonRedo.setEnabled(False)
         self.horizontalLayoutUndoRedo.addWidget(self.buttonRedo)
-        self.gridLayout.addLayout(self.horizontalLayoutUndoRedo, 5, 0, 1, 1)
+        self.gridLayout.addLayout(self.horizontalLayoutUndoRedo, 3, 0, 1, 1)
 
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QMenuBar(MainWindow)
-        self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 544, 23))
-        MainWindow.setMenuBar(self.menubar)
 
         # Set up status bar
         self.statusbar = QStatusBar(MainWindow)
@@ -278,6 +293,7 @@ class Ui_MainWindow(object):
                 f"Ui_MainWindow.setupUi.update_image(...)"
             )
             self.imageGraphicsView.scene.clear()
+            
             if program_state.draw_image is not None:
                 self.imageGraphicsView.load_image_from_pil(
                     program_state.draw_image
@@ -309,32 +325,65 @@ class Ui_MainWindow(object):
                     and program_state.gloss_connection_handler is not None
                     and len(program_state.gloss_connection_handler) > 0
             ):
-                self._tree_from_chains(
-                    program_state.gloss_connection_handler[program_state.current_page_index].connection_chains
-                )
+                chains = program_state.gloss_connection_handler[program_state.current_page_index].connection_chains
+                self._tree_from_chains(chains)
+
+                isolated_glosses = program_state.gloss_connection_handler[
+                    program_state.current_page_index
+                ].isolated_glosses
+                self._tree_from_isolated_glosses(isolated_glosses)
+
+                if program_state.currently_selected_object is not None:
+                    try:
+                        isolated_idx = isolated_glosses.index(program_state.currently_selected_object)
+                        self.chainManipulation.treeDisplayIsolated.topLevelItem(isolated_idx).setSelected(True)
+                    except ValueError:  # if not isolated, maybe it is in a chain
+                        for idx, chain in enumerate(chains):
+                            for connection in chain:
+                                if program_state.currently_selected_object.id in (connection.start.id, connection.end.id):
+                                    self.chainManipulation.treeDisplayChains.topLevelItem(idx).setSelected(True)
+
         program_state.data_changed.connect(update_tree)
 
+        def update_visibility():
+            top_level_items = [
+                self.chainManipulation.treeDisplayChains.topLevelItem(i)
+                for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
+            ]
+            for idx, item in enumerate(top_level_items):
+                for connection in program_state.gloss_connection_handler[
+                    program_state.current_page_index
+                ].connection_chains[idx]:
+                    connection.is_visible = item.checkState(1) == Qt.CheckState.Checked
+            program_state.update_connection_objects()
+
         # Connect the selection of an entry in the tree widget with a toggle of the selection button
-        def on_selection_changed():
-            curr_item = self.treeDisplayChains.currentItem()
+        def on_chain_selection_changed(index):
+            self.chainManipulation.treeDisplayIsolated.clearSelection()
+
+            curr_chain_item = self.chainManipulation.treeDisplayChains.currentItem()
+            column = index.column()
+
             LoggerSingleton().logger.log_info(
-                f"Ui_MainWindow.setupUi.on_selection_changed() ("
-                f"col_0 = '{curr_item.text(0) if curr_item is not None else None}', "
-                f"col_1 = '{curr_item.text(1) if curr_item is not None else None}'"
+                f"Ui_MainWindow.setupUi.on_chain_selection_changed() ("
+                f"col_0 = '{curr_chain_item.text(0) if curr_chain_item is not None else None}', "
+                f"col_1 = '{curr_chain_item.text(1) if curr_chain_item is not None else None}'"
+                f"col_2 = '{curr_chain_item.text(2) if curr_chain_item is not None else None}'"
                 f")"
             )
 
             cycle_index = None
             connection_in_cycle_index = None
-            if curr_item is not None and curr_item.columnCount() == 1:
-                cycle_index = self.treeDisplayChains.indexOfTopLevelItem(curr_item)
-                self.buttonRemoveChain.setEnabled(True)
+
+            if curr_chain_item is not None and curr_chain_item.columnCount() == 2:
+                cycle_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(curr_chain_item)
+                self.chainManipulation.buttonRemoveChain.setEnabled(True)
             else:
-                if curr_item is not None:
-                    connection_in_cycle_index = curr_item.parent().indexOfChild(curr_item)
-                    cycle_element = curr_item.parent()
-                    cycle_index = self.treeDisplayChains.indexOfTopLevelItem(cycle_element)
-                self.buttonRemoveChain.setEnabled(False)
+                if curr_chain_item is not None:
+                    connection_in_cycle_index = curr_chain_item.parent().indexOfChild(curr_chain_item)
+                    cycle_element = curr_chain_item.parent()
+                    cycle_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(cycle_element)
+                self.chainManipulation.buttonRemoveChain.setEnabled(False)
 
             # Center view to the start element of the selection
             view_obj = None
@@ -351,21 +400,88 @@ class Ui_MainWindow(object):
             if view_obj is not None:  # the start of a connection is always a GlossLine object
                 rectangle = view_obj.get_bounding_box()
                 rectangle = QRectF(*rectangle_xywh(rectangle))
-                self.imageGraphicsView.fitInView(rectangle, Qt.AspectRatioMode.KeepAspectRatio)
+                self.imageGraphicsView.centerOn(rectangle.center())
 
-        self.treeDisplayChains.clicked.connect(on_selection_changed)
+            # If a checkbox was clicked, update check box values for visibility!
+            if connection_in_cycle_index is None and column == 1:
+                self.main_window.thread_function(update_visibility)
+
+
+        def on_isolated_selection_changed(index):
+            self.chainManipulation.treeDisplayChains.clearSelection()
+
+            curr_isolated_item = self.chainManipulation.treeDisplayIsolated.currentItem()
+            LoggerSingleton().logger.log_info(
+                f"Ui_MainWindow.setupUi.on_isolated_selection_changed() ("
+                f"col_0 = '{curr_isolated_item.text(0) if curr_isolated_item is not None else None}', "
+                f"col_1 = '{curr_isolated_item.text(1) if curr_isolated_item is not None else None}'"
+                f")"
+            )
+
+            isolated_index = None
+
+            if curr_isolated_item is not None:
+                isolated_index = self.chainManipulation.treeDisplayChains.indexOfTopLevelItem(curr_isolated_item)
+                self.chainManipulation.buttonRemoveChain.setEnabled(True)
+            else:
+                self.chainManipulation.buttonRemoveChain.setEnabled(False)
+
+            # Center view to the start element of the selection
+            view_obj = None
+            if isolated_index is not None:
+                view_obj = program_state.gloss_connection_handler[
+                        program_state.current_page_index
+                    ].isolated_glosses[isolated_index]
+
+            if view_obj is not None:  # the start of a connection is always a GlossLine object
+                rectangle = view_obj.get_bounding_box()
+                rectangle = QRectF(*rectangle_xywh(rectangle))
+                self.imageGraphicsView.centerOn(rectangle.center())
+
+        self.chainManipulation.treeDisplayChains.clicked.connect(on_chain_selection_changed)
+        self.chainManipulation.treeDisplayIsolated.clicked.connect(on_isolated_selection_changed)
+
+        # When clicking on the "Visible" header element, toggle all visibility elements
+        def on_click_visible_header(index):
+            LoggerSingleton().logger.log_info(
+                f"Ui_MainWindow.setupUi.on_click_visible_header()"
+            )
+            if index == 1:  # column "Visible"
+                top_level_items = [
+                    self.chainManipulation.treeDisplayChains.topLevelItem(i)
+                    for i in range(self.chainManipulation.treeDisplayChains.topLevelItemCount())
+                ]
+                all_are_checked = True
+                for item in top_level_items:
+                    all_are_checked = all_are_checked and (item.checkState(1) == Qt.CheckState.Checked)
+                if all_are_checked:  # if all chains are set to visible, set all to invisible
+                    for item in top_level_items:
+                        item.setCheckState(1, Qt.CheckState.Unchecked)
+                else:  # if at least one item is unchecked, set all chains to visible
+                    for item in top_level_items:
+                        item.setCheckState(1, Qt.CheckState.Checked)
+
+                # Update check box values for visibility!
+                self.main_window.thread_function(update_visibility)
+
+        self.chainManipulation.treeDisplayChains.header().sectionClicked.connect(on_click_visible_header)
 
         # Connect clicking the remove connection button with deleting the current connection
         def on_click_remove_connection():
-            curr_item = self.treeDisplayChains.currentItem()
+            curr_chain_item = self.chainManipulation.treeDisplayChains.currentItem()
+
+            curr_isolated_item = self.chainManipulation.treeDisplayIsolated.currentItem()
 
             def remove_connection():
-                if curr_item is not None:
+                if curr_chain_item is not None:
                     # because the naming convention is 'Child 2' for the 1st tree entry
-                    index_to_delete = int(curr_item.text(0).split(" ")[-1]) - 1
+                    index_to_delete = int(curr_chain_item.text(0).split(" ")[-1]) - 1
                     program_state.remove_connection(index_to_delete)
+                if curr_isolated_item is not None:
+                    index_to_delete = int(curr_isolated_item.text(0).split(" ")[-1]) - 1
+                    program_state.remove_from_isolated_glosses(index_to_delete)
             self.main_window.thread_function(remove_connection)
-        self.buttonRemoveChain.clicked.connect(on_click_remove_connection)
+        self.chainManipulation.buttonRemoveChain.clicked.connect(on_click_remove_connection)
 
         # Connect clicking the update display text checkbox
         def on_click_checkbox_display_text():
@@ -539,7 +655,14 @@ class Ui_MainWindow(object):
                             ].get_object_from_id(current_gloss_line)
                             rectangle = current_object.get_bounding_box()
                             rectangle = QRectF(*rectangle_xywh(rectangle))
-                            self.imageGraphicsView.fitInView(rectangle, Qt.AspectRatioMode.KeepAspectRatio)
+                            self.imageGraphicsView.centerOn(rectangle.center())
+                            # Update label text to show which gloss the user currently is on
+                            self.labelUnconnectedGlossLines.setText(
+                                f"Unconnected Gloss Line: "
+                                f"{program_state.unconnected_gloss_lines.get_current_index()+1}"
+                                f"/"
+                                f"{len(program_state.unconnected_gloss_lines)}"
+                            )
                             program_state.unconnected_gloss_lines.next_element()
                         except ValueError as e:
                             LoggerSingleton().logger.log_exception(e)
@@ -585,19 +708,15 @@ class Ui_MainWindow(object):
         self.buttonPreviousPage.setText(QCoreApplication.translate("MainWindow", u"<< Previous Page", None))
         self.lineEditCurrentPage.setText(QCoreApplication.translate("MainWindow", u"", None))
         self.buttonNextPage.setText(QCoreApplication.translate("MainWindow", u"Next Page >>", None))
-        self.buttonNewProject.setText(QCoreApplication.translate("MainWindow", u"New Project", None))
-        self.buttonOpenProject.setText(QCoreApplication.translate("MainWindow", u"Load Project", None))
-        self.buttonSaveProject.setText(QCoreApplication.translate("MainWindow", u"Save Project", None))
-        self.buttonSaveAsProject.setText(QCoreApplication.translate("MainWindow", u"Save Project As", None))
-        self.buttonReplacePageXml.setText(QCoreApplication.translate("MainWindow", u"Replace Current PageXML", None))
-        self.buttonExportTei.setText(QCoreApplication.translate("MainWindow", u"Export TEI", None))
-        self.buttonExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
-
-        self.label_2.setText(QCoreApplication.translate("MainWindow", u"Connection Chains:", None))
-        ___qtreewidgetitem = self.treeDisplayChains.headerItem()
-        ___qtreewidgetitem.setText(1, QCoreApplication.translate("MainWindow", u"Connection", None))
-        ___qtreewidgetitem.setText(0, QCoreApplication.translate("MainWindow", u"Chain", None))
-        self.buttonRemoveChain.setText(QCoreApplication.translate("MainWindow", u"Remove Chain", None))
+        self.actionNewProject.setText(QCoreApplication.translate("MainWindow", u"New Project", None))
+        self.actionOpenProject.setText(QCoreApplication.translate("MainWindow", u"Load Project", None))
+        self.actionSaveProject.setText(QCoreApplication.translate("MainWindow", u"Save Project", None))
+        self.actionSaveAsProject.setText(QCoreApplication.translate("MainWindow", u"Save Project As", None))
+        self.actionReplacePageXml.setText(QCoreApplication.translate("MainWindow", u"Replace Current PageXML", None))
+        self.actionOpenSettings.setText(QCoreApplication.translate("MainWindow", u"Preferences", None))
+        self.actionExportTei.setText(QCoreApplication.translate("MainWindow", u"Export TEI", None))
+        self.actionExportMets.setText(QCoreApplication.translate("MainWindow", u"Export METS", None))
+        self.actionExportView.setText(QCoreApplication.translate("MainWindow", u"Export View (PDF)", None))
         self.buttonUndo.setText(QCoreApplication.translate("MainWindow", u"Undo", None))
         self.buttonRedo.setText(QCoreApplication.translate("MainWindow", u"Redo", None))
     # retranslateUi
@@ -631,16 +750,50 @@ class Ui_MainWindow(object):
         LoggerSingleton().logger.log_info(
             f"Ui_MainWindow._tree_from_chains(...)"
         )
-        self.treeDisplayChains.clearSelection()
-        self.treeDisplayChains.clear()
+        self.chainManipulation.treeDisplayChains.clearSelection()
+        self.chainManipulation.treeDisplayChains.clear()
+
+        check_state_list = []
         for idx, chain in enumerate(chains):
-            item = QTreeWidgetItem(self.treeDisplayChains)
+            item = QTreeWidgetItem(self.chainManipulation.treeDisplayChains)
             item.setText(0, f"Chain {idx+1}")
+
+            visibility = False  # visibility should be if at least one connection of the chain is visible!
             for connection in chain:
                 subitem = QTreeWidgetItem(item)
                 subitem.setText(
-                    1,
+                    2,
                     f"{connection.start.type} '{connection.start.text}' "
                     f"→ {connection.end.type} '{connection.end.text}'"
                 )
-        self.treeDisplayChains.expandAll()
+                visibility = visibility or connection.is_visible
+            check_state = Qt.CheckState.Checked if visibility else Qt.CheckState.Unchecked
+            check_state_list.append(check_state)
+            item.setCheckState(1, check_state)
+
+        # Update header item icon according to check states
+        if Qt.CheckState.Checked in check_state_list and Qt.CheckState.Unchecked in check_state_list:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.PartiallyChecked)
+        elif Qt.CheckState.Checked in check_state_list:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.Checked)
+        else:
+            self.chainManipulation.visibility_header_checkbox_set_checkstate(Qt.CheckState.Unchecked)
+        self.chainManipulation.treeDisplayChains.expandAll()
+
+    def _tree_from_isolated_glosses(self, isolated_glosses: list[GlossLine]):
+        """
+        Updates the treeDisplayIsolated widget according to the content of the isolated gloss lines.
+        :param isolated_glosses: List of isolated glosses.
+        """
+        LoggerSingleton().logger.log_info(
+            f"Ui_MainWindow._tree_from_isolated_glosses(...)"
+        )
+        self.chainManipulation.treeDisplayIsolated.clearSelection()
+        self.chainManipulation.treeDisplayIsolated.clear()
+
+        for idx, gloss in enumerate(isolated_glosses):
+            item = QTreeWidgetItem(self.chainManipulation.treeDisplayIsolated)
+            item.setText(0, f"Gloss {idx+1}")
+            item.setText(1, gloss.to_minimal_string())
+
+        self.chainManipulation.treeDisplayIsolated.expandAll()

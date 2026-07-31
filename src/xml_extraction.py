@@ -348,7 +348,6 @@ class METSPage:
         is_double_page (bool): True indicates that the manuscript book contains only double pages,
                                i.e., one image contains two pages.
         ocr_model_path (str): Path to the Kraken OCR model.
-        ocr_model (models.TorchSeqRecognizer): The loaded OCR model from ocr_model_path.
 
     Private Attributes:
         _ocr_predictions (OCRPredictionWrapper): The OCR prediction wrapper for the page.
@@ -810,8 +809,8 @@ class METSPage:
             ground_truth_words).lower()  # remove spaces and all lowercase for matching with OCR output
 
         # ii) Get Kraken prediction.
-        ocr_prediction = self._ocr_predictions.get_line_prediction(line_id)
-        ocr_prediction = remove_spaces_from_ocr_prediction(ocr_prediction)
+        ocr_prediction_original = self._ocr_predictions.get_line_prediction(line_id)
+        ocr_prediction = remove_spaces_from_ocr_prediction(ocr_prediction_original)
 
         # also make text all lowercase
         ocr_string, ocr_coords = ocr_prediction["text"].lower(), ocr_prediction["coords"]

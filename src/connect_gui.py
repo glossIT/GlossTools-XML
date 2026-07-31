@@ -1,10 +1,10 @@
 import os
 import shutil
 
-from PySide6.QtGui import QIcon, Qt
-from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, \
-    QMessageBox
-from PySide6.QtCore import Signal, QCoreApplication, QSettings, QThread, Slot, \
+from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence, QAction
+from PySide6.QtPrintSupport import QPrinter
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
+from PySide6.QtCore import Signal, QCoreApplication, QSizeF, QThread, Slot, \
     qInstallMessageHandler, QtMsgType
 import sys
 from typing import Callable
@@ -12,8 +12,9 @@ import umsgpack
 import uuid
 import zlib
 
+from constants import StringConstants, IntConstants
 from glossit_connect_glosses import GlossOnPageConnector
-from xml_extraction import METSBook
+from gui_files.dialog_change_settings import ChangeSettingsDialog
 from gui_files.dialog_save_on_exit import DialogSaveOnExit
 from gui_files.dialog_select_files import OpenProjectFileSelectDialog
 from gui_files.dialog_loading import LoadingDialog, LoadingDialogContent
@@ -21,13 +22,9 @@ from gui_files.gloss_connector_manager import ObservableGlossOnPageConnector
 from gui_files.logger import LoggerSingleton
 from gui_files.main_gloss_connector import Ui_MainWindow
 from gui_files.program_state import ProgramStateSingleton
+from gui_files.settings import Settings, settings_get, settings_set, settings_get_default_values
 from gui_files.spatial_database import SpatialDatabase
-
-
-# TODO
-class Constants:
-    METS_SCHEMA: str = "./schemas/mets.xsd"
-    TEI_SCHEMA: str = None  # TODO "./schemas/tei.xsd"
+from xml_extraction import METSBook
 
 
 def show_warning_yesno_dialog(informative_text=""):
@@ -51,14 +48,16 @@ class ThreadWrapper(QThread):
     such that the main loop is not blocked.
 
     Attributes:
-        finished (Signal): This signal is emitted when the thread has finished executing its assigned function.
+        finished (Signal[object]): This signal is emitted when the thread has finished executing its assigned function.
+                                   It carries the thread_id assigned by MainWindow.thread_function.
         function_to_run (Callable): The costly function that should be run in a separate thread.
+        thread_id (uuid.UUID | None): Identifier assigned by MainWindow.thread_function for cleanup bookkeeping.
 
     Methods:
         run: Starts executing the function passed in a separate thread. Upon finishing, the signal
              finished is emitted.
     """
-    finished = Signal()
+    finished = Signal(object)
 
     def __init__(self, function_to_run: Callable = None):
         """
@@ -68,6 +67,7 @@ class ThreadWrapper(QThread):
         """
         super().__init__()
         self.function_to_run = function_to_run
+        self.thread_id = None
 
     def run(self):
         """
@@ -77,9 +77,12 @@ class ThreadWrapper(QThread):
         LoggerSingleton().logger.log_threaded_function(self.function_to_run.__name__)
         try:
             self.function_to_run()
-            self.finished.emit()
         except Exception as e:
             LoggerSingleton().logger.log_exception(e)
+        finally:
+            # Always emit, even on exception! Otherwise, the modal LoadingDialog is never closed
+            # and the GUI is stuck behind an unclosable dialog
+            self.finished.emit(self.thread_id)
 
 
 class MainWindow(QMainWindow):
@@ -88,7 +91,10 @@ class MainWindow(QMainWindow):
 
     Attributes:
         show_error_dialog (Signal[str, str]): This signal is emitted when an error message dialog should be displayed.
-                                    First string is the title, second string is the error message.
+                                              First string is the title, second string is the error message.
+        enable_buttons (Signal): This signal is emitted if the GUI buttons should be enabled.
+        add_to_recently_accessed (Signal[str]): This signal is emitted when a new filename should be added to the list
+                                                of recently opened files.
         ui (Ui_MainWindow): The user interface associated with the main window.
         settings (QSettings): Stores settings such as window geometry to restore after restarting the software.
         threads (list[ThreadWrapper]): A list of threads that are currently being executed.
@@ -102,7 +108,8 @@ class MainWindow(QMainWindow):
 
     Private Methods:
         _new_project: Opens an OpenProjectFileSelectDialog and initializes the program state singleton accordingly.
-        _open_project: Asks the user to select a glp file and loads it into the program state.
+        _ask_user_open_project: Asks the user to select a glp file and loads it into the program state.
+        _open_project (str): Given a file path, attempts to open the file as a project.
         _save_project (bool): Saves the current project to the previously saved file. If this is the first save,
                        _save_as_project is called.
         _save_as_project (bool): Saves the current project to a file.
@@ -112,39 +119,81 @@ class MainWindow(QMainWindow):
         _export_tei: Asks the user to select a file to which the TEI including connection data is exported.
         _export_mets: Asks the user to select a folder to which the METS file, the PageXML data and manuscript page
                       images are exported.
+        _open_settings: Opens the settings dialog window and applies them to the program.
         _close_thread (uuid.UUID): Closes the thread with the passed ID and removes it from the list threads.
         _enable_buttons: Enables all buttons that can only be accessed after a project is loaded or created.
+        _show_toast (str, str, ToastPreset): Forwards a show_toast signal to the UI on the main thread.
+        _update_recently_accessed: Updates the context menu of recently accessed files.
+        _add_to_recently_accessed (str): Adds a file path to the recently accessed files setting.
     """
     show_error_dialog = Signal(str, str)
+    enable_buttons = Signal()
+    add_to_recently_accessed = Signal(str)
 
     def __init__(self):
         super().__init__()
+
         self.show_error_dialog.connect(self._show_error_dialog)
+        self.enable_buttons.connect(self._enable_buttons)
+        self.add_to_recently_accessed.connect(self._add_to_recently_accessed)
 
         program_state = ProgramStateSingleton().program_state
         program_state._main_window = self
 
-        QCoreApplication.setOrganizationName("GlossIT")
-        QCoreApplication.setApplicationName("GlossIT Gloss Connector")
-        QCoreApplication.setOrganizationDomain("https://glossit.uni-graz.at")
+        QCoreApplication.setOrganizationName(StringConstants.ORGANIZATION)
+        QCoreApplication.setApplicationName(StringConstants.APPLICATION)
+        QCoreApplication.setOrganizationDomain(StringConstants.DOMAIN)
         self.setWindowIcon(program_state.icon)
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        program_state.show_toast.connect(self.ui.show_toast)
+
+        # Connect to a bound method of this QObject to show toasts
+        program_state.show_toast.connect(self._show_toast)
+
+        # Check if all settings are set, otherwise reset them to default values
+        for setting in Settings:
+            if settings_get(setting) is None:
+                default_values = settings_get_default_values()
+                if setting in default_values:
+                    settings_set(setting, default_values[setting])
+                    LoggerSingleton().logger.log_warning(f"Invalid setting value '{settings_get(setting)}' for key"
+                                                         f" '{setting.key}'. Revert setting to default.")
 
         # Load window geometry
-        self.settings = QSettings("GlossIT", "GlossIT Gloss Connector")
-        self.restoreGeometry(self.settings.value("windowGeometry"))
+        self.restoreGeometry(settings_get(Settings.GEOMETRY))
+        self.restoreState(settings_get(Settings.WINDOW_STATE))
+
+        # Update recently accessed files
+        self._update_recently_accessed()
+
+        # Set debug logging
+        LoggerSingleton().logger.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
 
         # connect buttons to actions
-        self.ui.buttonNewProject.clicked.connect(self._new_project)
-        self.ui.buttonOpenProject.clicked.connect(self._open_project)
-        self.ui.buttonSaveProject.clicked.connect(self._save_project)
-        self.ui.buttonSaveAsProject.clicked.connect(self._save_as_project)
-        self.ui.buttonReplacePageXml.clicked.connect(self._replace_pagexml)
-        self.ui.buttonExportTei.clicked.connect(self._export_tei)
-        self.ui.buttonExportMets.clicked.connect(self._export_mets)
+        self.ui.actionNewProject.triggered.connect(self._new_project)
+        self.ui.actionNewProject.setShortcut(QKeySequence("Ctrl+N"))
+
+        self.ui.actionOpenProject.triggered.connect(self._ask_user_open_project)
+        self.ui.actionOpenProject.setShortcut(QKeySequence("Ctrl+O"))
+
+        self.ui.actionSaveProject.triggered.connect(self._save_project)
+        self.ui.actionSaveProject.setShortcut(QKeySequence("Ctrl+S"))
+
+        self.ui.actionSaveAsProject.triggered.connect(self._save_as_project)
+        self.ui.actionSaveAsProject.setShortcut(QKeySequence("Ctrl+Shift+S"))
+
+        self.ui.actionReplacePageXml.triggered.connect(self._replace_pagexml)
+        self.ui.actionReplacePageXml.setShortcut(QKeySequence("Ctrl+R"))
+
+        self.ui.actionExportTei.triggered.connect(self._export_tei)
+        self.ui.actionExportTei.setShortcut(QKeySequence("Ctrl+E"))
+
+        self.ui.actionExportMets.triggered.connect(self._export_mets)
+
+        self.ui.actionExportView.triggered.connect(self._export_view)
+
+        self.ui.actionOpenSettings.triggered.connect(self._open_settings)
 
         self.threads = dict()
 
@@ -159,20 +208,7 @@ class MainWindow(QMainWindow):
 
         if key == Qt.Key.Key_Escape:
             program_state.currently_selected_object = None
-        elif key == Qt.Key.Key_N and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._new_project()
-        elif key == Qt.Key.Key_O and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._open_project()
-        elif (key == Qt.Key.Key_S and
-              event.modifiers() & Qt.KeyboardModifier.ControlModifier and
-              event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
-            self._save_as_project()
-        elif key == Qt.Key.Key_S and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._save_project()
-        elif key == Qt.Key.Key_R and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._replace_pagexml()
-        elif key == Qt.Key.Key_E and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._export_tei()
+
         elif key == Qt.Key.Key_Left and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             def shortcut_to_previous_page():
                 program_state.go_to_previous_page()
@@ -191,8 +227,10 @@ class MainWindow(QMainWindow):
             self.thread_function(program_state.redo)
         elif key == Qt.Key.Key_Z and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.thread_function(program_state.undo)
-        elif key == Qt.Key.Key_M and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self._export_mets()
+        elif key == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            import objgraph
+            objgraph.show_growth(limit=10)
+            print("\n")
 
     def closeEvent(self, event):
         """
@@ -215,7 +253,8 @@ class MainWindow(QMainWindow):
                 self._save_project(exit_after=True)
                 return
 
-        self.settings.setValue("windowGeometry", self.saveGeometry())
+        settings_set(Settings.GEOMETRY, self.saveGeometry())
+        settings_set(Settings.WINDOW_STATE, self.saveState())
         event.accept()
 
     def thread_function(
@@ -228,7 +267,7 @@ class MainWindow(QMainWindow):
         Executes the function in a separate thread and displays a LoadingDialog while not finished.
 
         :param function_to_run: Function that should be executed.
-        :param tqdm_progress: Progress bar that is displayed.
+        :param loading_window_content: Containing information about what should be shown in the loading dialog.
         :param exit_after: Closes the main window after the thread has finished.
         """
         if loading_window_content is None:
@@ -237,8 +276,15 @@ class MainWindow(QMainWindow):
         loading_dialog.show()
         new_thread = ThreadWrapper(function_to_run)
         thread_id = uuid.uuid4()
+        new_thread.thread_id = thread_id
         self.threads[thread_id] = {"thread": new_thread, "loading_dialog": loading_dialog}
-        new_thread.finished.connect(self._close_thread(thread_id=thread_id))
+
+        # Connect to the bound method (a slot on this QObject) so the cleanup runs on the
+        # main thread via a queued connection. Connecting a plain closure here
+        # would make Qt invoke it in the emitting worker thread, where closing the dialog
+        # (a GUI operation) is NOT allowed and deadlocks the application!
+        new_thread.finished.connect(self._close_thread)
+
         if exit_after:
             new_thread.finished.connect(self.close)
         new_thread.start()
@@ -305,27 +351,33 @@ class MainWindow(QMainWindow):
                     tqdm_progress=loading_window_content.callback_tqdm
                 )
 
+                # Now, we allow saving, exporting, and going to previous/next pages
+                self.enable_buttons.emit()
+
             self.thread_function(on_new, loading_window_content=loading_window_content)
 
-            # Now, we allow saving, exporting, and going to previous/next pages
-            self._enable_buttons()
-
-    def _open_project(self):
+    def _ask_user_open_project(self):
         """
         Asks the user to select a *.glp file and loads it into the program state.
         """
-        LoggerSingleton().logger.log_info(f"MainWindow._open_project()")
+        LoggerSingleton().logger.log_info(f"MainWindow._ask_user_open_project()")
         program_state = ProgramStateSingleton().program_state
 
         # get path of where the file should be saved
         load_path, _ = QFileDialog.getOpenFileName(
             self,
             caption="Open GlossIT Project File",
-            filter="GlossIT Project File (*.glp);;All Files (*.*)"
+            filter=f"GlossIT Project File (*.{StringConstants.PROJECT_FILE_EXTENSION.value});;All Files (*.*)"
         )
         LoggerSingleton().logger.log_info(f"User selected model path {load_path}")
+
+        self._open_project(load_path)
+
+    def _open_project(self, load_path: str):
         if load_path is not None and load_path != "":
             loading_window_content = LoadingDialogContent()
+
+            program_state = ProgramStateSingleton().program_state
 
             def on_load():
                 loading_window_content.status_text = "Please wait..."
@@ -381,10 +433,12 @@ class MainWindow(QMainWindow):
 
                 program_state.has_unsaved_changes = False
 
-            self.thread_function(on_load, loading_window_content=loading_window_content)
+                # Finally, add the opened file path to the recently opened files
+                self.add_to_recently_accessed.emit(load_path)
+                # Now, we allow saving, exporting, and going to previous/next pages
+                self.enable_buttons.emit()
 
-            # Now, we allow saving, exporting, and going to previous/next pages
-            self._enable_buttons()
+            self.thread_function(on_load, loading_window_content=loading_window_content)
 
     def _save_project(self, exit_after: bool = False):
         """
@@ -409,14 +463,15 @@ class MainWindow(QMainWindow):
         program_state = ProgramStateSingleton().program_state
         default_filename = program_state.save_file_path
         if default_filename is None:
-            default_filename = os.path.join(os.path.dirname(program_state.path_to_mets), "project.glp")
+            default_filename = os.path.join(os.path.dirname(program_state.path_to_mets),
+                                            f"project.{StringConstants.PROJECT_FILE_EXTENSION.value}")
 
         # get path of where the file should be saved
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             caption="Save GlossIT Project File",
             dir=default_filename,
-            filter="GlossIT Project File (*.glp);;All Files (*.*)"
+            filter=f"GlossIT Project File (*.{StringConstants.PROJECT_FILE_EXTENSION.value});;All Files (*.*)"
         )
         self._save_project_to_path(save_path, exit_after=exit_after)
 
@@ -430,7 +485,7 @@ class MainWindow(QMainWindow):
         program_state = ProgramStateSingleton().program_state
         if save_path is not None and save_path != "":
             if save_path.split(".")[-1] != "glp":
-                save_path += ".glp"
+                save_path += f".{StringConstants.PROJECT_FILE_EXTENSION.value}"
             program_state.save_file_path = save_path
             loading_window_content = LoadingDialogContent()
 
@@ -467,6 +522,9 @@ class MainWindow(QMainWindow):
                     return
                 # Update the status of the saved changes
                 program_state.has_unsaved_changes = False
+
+                # Finally, add the saved file path to the recently opened files
+                self.add_to_recently_accessed.emit(save_path)
 
             self.thread_function(on_save, loading_window_content=loading_window_content, exit_after=exit_after)
 
@@ -641,36 +699,173 @@ class MainWindow(QMainWindow):
 
         self.thread_function(on_export_mets)
 
-    def _close_thread(self, thread_id: uuid.UUID) -> Callable:
+    def _export_view(self):
         """
-        Returns a function handle to a function that closes the thread with the passed ID and removes it
-        from the list threads.
+        Asks the user to select a file to which the currently displayed view is exported as PDF.
+        """
+        LoggerSingleton().logger.log_info(f"MainWindow._export_view()")
+        program_state = ProgramStateSingleton().program_state
+        if program_state.save_file_path is not None:
+            default_filename = "".join(program_state.save_file_path.split(".")[:-1])  # remove extension
+        else:
+            default_filename = "export"
+        default_filename += "_view.pdf"
+
+        # get path of where the file should be saved
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            caption="Export current view as PDF",
+            dir=default_filename,
+            filter="PDF File (*.xml);;All Files (*.*)"
+        )
+        if save_path is not None and save_path != "":
+            if save_path.split(".")[-1] != "pdf":
+                save_path += ".pdf"
+            loading_window_content = LoadingDialogContent()
+
+            def on_export():
+                loading_window_content.status_text = "Please wait..."
+                loading_window_content.action_text = "Constructing view"
+
+                try:
+                    printer = QPrinter()
+                    printer.setOutputFormat(QPrinter.PdfFormat)
+                    printer.setOutputFileName(save_path)
+
+                    scene = self.ui.imageGraphicsView.scene
+                    rect = scene.sceneRect()
+
+                    page_size = QPageSize(QSizeF(rect.width(), rect.height()), QPageSize.Point)
+                    printer.setPageSize(page_size)
+
+                    printer.setFullPage(True)
+                except Exception as e:
+                    LoggerSingleton().logger.log_exception(e)
+                    self.show_error_dialog.emit("Error",
+                                                f"Failed to construct PDF printer.")
+                    return
+
+                loading_window_content.action_text = "Saving to file system"
+                try:
+                    painter = QPainter(printer)
+                    scene.render(painter)
+                    painter.end()
+                except Exception as e:
+                    LoggerSingleton().logger.log_exception(e)
+                    self.show_error_dialog.emit("Error",
+                                                f"Failed to save file to file system.")
+                    return
+
+            self.thread_function(on_export, loading_window_content=loading_window_content)
+
+    def _open_settings(self):
+        """
+        Opens the settings dialog window and applies them to the program.
+        """
+        LoggerSingleton().logger.log_info(f"MainWindow._open_settings()")
+
+        change_settings_dialog = ChangeSettingsDialog()
+        settings_dict = change_settings_dialog.exec()
+        if settings_dict is not None:
+            for key, value in settings_dict.items():
+                settings_set(key, value)
+
+        program_state = ProgramStateSingleton().program_state
+        LoggerSingleton().logger.enable_debug_logging(settings_get(Settings.DEBUG_ENABLED))
+        if program_state.draw_image is not None:
+            program_state.construct_current_page_graphics()
+
+    @Slot(object)
+    def _close_thread(self, thread_id: uuid.UUID):
+        """
+        Closes the loading dialog belonging to the finished thread and removes the thread from the
+        dictionary threads. Invoked on the main thread via the ThreadWrapper.finished signal.
         :param thread_id: ID of the thread to be closed.
-        :return: Function handle.
         """
         LoggerSingleton().logger.log_info(f"MainWindow._close_thread(thread_id={thread_id})")
-        def close_thread():
-            if thread_id in self.threads:
-                self.threads[thread_id]["loading_dialog"].close_dialog()
-                self.threads[thread_id]["thread"].terminate()
-                del self.threads[thread_id]
+        entry = self.threads.pop(thread_id, None)
+        if entry is not None:
+            entry["loading_dialog"].close_dialog()
+            # The thread has already left its run() method (the signal finished was emitted at its end).
+            # Now, wait for the OS thread to fully terminate before dropping the last reference.
+            entry["thread"].wait()
 
-        return close_thread
-
+    @Slot()
     def _enable_buttons(self):
         """
         Enables all buttons that can only be accessed after a project is loaded or created.
         """
         LoggerSingleton().logger.log_info(f"MainWindow._enable_buttons()")
-        self.ui.buttonSaveProject.setEnabled(True)
-        self.ui.buttonSaveAsProject.setEnabled(True)
-        self.ui.buttonReplacePageXml.setEnabled(True)
-        self.ui.buttonExportTei.setEnabled(True)
-        self.ui.buttonExportMets.setEnabled(True)
+        self.ui.actionSaveProject.setEnabled(True)
+        self.ui.actionSaveAsProject.setEnabled(True)
+        self.ui.actionReplacePageXml.setEnabled(True)
+        self.ui.actionExportTei.setEnabled(True)
+        self.ui.actionExportMets.setEnabled(True)
+        self.ui.actionExportView.setEnabled(True)
         self.ui.buttonPreviousPage.setEnabled(True)
         self.ui.buttonNextPage.setEnabled(True)
         self.ui.checkboxDisplayText.setEnabled(True)
         self.ui.lineEditCurrentPage.setEnabled(True)
+
+    def _show_toast(self, toast_title, toast_text, toast_preset):
+        """
+        Forwards a show_toast signal to the UI on the main thread.
+        """
+        self.ui.show_toast(toast_title, toast_text, toast_preset)
+
+    def _update_recently_accessed(self):
+        """
+        Updates the context menu of recently accessed files.
+        """
+
+        # Get unique and valid recent files
+        ext = "." + StringConstants.PROJECT_FILE_EXTENSION
+        recent_files = [fname for fname in settings_get(Settings.OPEN_RECENT) if
+                        os.path.exists(fname) and fname.lower()[-len(ext):] == ext]
+        # Save back valid recent files
+        settings_set(Settings.OPEN_RECENT, recent_files)
+
+        # Clear actions and add new actions according to recent files
+        self.ui.menuOpenRecentProject.clear()
+        for filename in recent_files:
+            action = QAction(filename, self.centralWidget())
+            action.triggered.connect(
+                lambda checked=None, fname=filename: [
+                    LoggerSingleton().logger.log_user_interaction(f"Open recent file action {fname} triggered."),
+                    self._open_project(fname)
+                ]
+            )
+            self.ui.menuOpenRecentProject.addAction(action)
+
+        if len(recent_files) > 0:
+            self.ui.menuOpenRecentProject.setEnabled(True)
+        else:
+            self.ui.menuOpenRecentProject.setEnabled(False)
+
+    @Slot(str)
+    def _add_to_recently_accessed(self, path: str):
+        """
+        Adds a file path to the recently accessed files setting.
+        :param path: Path to add.
+        """
+        recent_files = settings_get(Settings.OPEN_RECENT)
+        abspath = os.path.abspath(path)
+
+        # If the file is already present, delete it from the list, as it will be inserted at first position later
+        try:
+            index = recent_files.index(abspath)
+            del recent_files[index]
+        except ValueError:
+            pass
+
+        # Insert at first position
+        recent_files.insert(0, abspath)
+
+        if len(recent_files) > IntConstants.MAX_LENGTH_RECENTLY_OPENED_FILES:
+            recent_files.pop()
+
+        settings_set(Settings.OPEN_RECENT, recent_files)
+        self._update_recently_accessed()
 
 
 def start_gui():

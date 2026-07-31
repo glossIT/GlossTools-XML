@@ -145,6 +145,7 @@ class CyclicList:
 
     Methods:
         get_current_element: Returns the currently selected element.
+        get_current_index: Returns the index of the currently selected element.
         previous_element: Goes to the previous element and returns it.
         next_element: Goes to the next element and returns it.
     """
@@ -166,6 +167,16 @@ class CyclicList:
         """
         if len(self._elements):
             return self._elements[self._counter.current_index]
+        else:
+            return None
+
+    def get_current_index(self) -> int | None:
+        """
+        Returns the index of the currently selected element.
+        :return: The currently selected element index.
+        """
+        if len(self._elements):
+            return self._counter.current_index
         else:
             return None
 
