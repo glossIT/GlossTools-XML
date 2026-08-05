@@ -785,7 +785,13 @@ class MainWindow(QMainWindow):
         LoggerSingleton().logger.log_info(f"MainWindow._close_thread(thread_id={thread_id})")
         entry = self.threads.pop(thread_id, None)
         if entry is not None:
-            entry["loading_dialog"].close_dialog()
+            loading_dialog = entry["loading_dialog"]
+            loading_dialog.close_dialog()
+
+            # Closing the dialog is not enough, it also needs to be deleted!
+            loading_dialog.content = None
+            loading_dialog.deleteLater()
+
             # The thread has already left its run() method (the signal finished was emitted at its end).
             # Now, wait for the OS thread to fully terminate before dropping the last reference.
             entry["thread"].wait()

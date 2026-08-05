@@ -1,9 +1,38 @@
-import os
 import tqdm
 from typing import Iterable, Callable
 
 from PySide6.QtCore import QEvent, Qt, QObject, Signal
 from PySide6.QtWidgets import QDialog, QMainWindow, QLabel, QProgressBar, QVBoxLayout
+
+
+class NullWriter:
+    """
+    Class NullWriter is a write-only stream that discards everything written to it.
+
+    It is used as the output stream of a CallbackTqdm, whose progress is reported via callbacks
+    instead of being printed. Unlike opening os.devnull, this holds no file descriptor, so
+    creating one per user interaction cannot exhaust the file descriptor limit of the process.
+
+    Methods:
+        write (str): Discards the string and reports it as written.
+        flush: Does nothing.
+    """
+
+    def write(self, string: str) -> int:
+        """
+        Discards the string and reports it as written.
+
+        :param string: The string that is discarded.
+        :return: The number of characters that were discarded.
+        """
+        return len(string)
+
+    def flush(self):
+        """
+        Does nothing, since there is nothing to flush.
+        """
+        pass
+
 
 
 class LoadingDialogContent(QObject):
@@ -35,7 +64,7 @@ class LoadingDialogContent(QObject):
         super().__init__()
 
         self.callback_tqdm = CallbackTqdm(
-            file=open(os.devnull, "w"),  # status updates are not written to stderr
+            file=NullWriter(),  # status updates are not written to stderr
             status_update_callback=lambda string: self.changed_status_text.emit(string),
             progress_bar_update_callback=lambda integer: self.changed_progress_bar_value.emit(integer)
         )

@@ -419,7 +419,10 @@ class METSPage:
 
         pagexml = self._load_pagexml(self.pagexml_path)  # Kraken PageXML wrapper
         self._update_pagexml_lines(pagexml=pagexml)
-        self.pageimg = Image.open(self.image_path)
+
+        # Read image without having the need to keep the file handle open
+        with open(self.image_path, "rb") as image_file:
+            self.pageimg = Image.open(io.BytesIO(image_file.read()))
 
         if tei_path is not None:  # Only apply a transformation if a path was provided
             if tei is not None:  # if we have a tei provided, use it
