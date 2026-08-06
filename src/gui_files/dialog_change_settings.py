@@ -113,7 +113,7 @@ class ChangeSettingsDialog(QDialog):
         else:
             slider = LabeledSlider()
             slider.setMinimum(0)
-            slider.setMaximum(200)
+            slider.setMaximum(255)
             slider.setTickInterval(5)
 
         slider.setTickPosition(QSlider.TickPosition.TicksBelow)
