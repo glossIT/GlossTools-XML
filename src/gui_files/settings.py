@@ -194,12 +194,12 @@ def settings_get(setting: Settings) -> object:
     elif issubclass(setting.type, int):
         try:
             return int(value)
-        except ValueError:
+        except (ValueError, TypeError):
             return 255
     elif issubclass(setting.type, float):
         try:
             return float(value)
-        except ValueError:
+        except (ValueError, TypeError):
             return 1.
     elif issubclass(setting.type, list_str):
         if isinstance(value, str) and value != "null":

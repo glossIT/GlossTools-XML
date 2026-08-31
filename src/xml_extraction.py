@@ -1,10 +1,10 @@
 from bs4 import BeautifulSoup  # XML manipulation
 import difflib  # matching strings
+import io
 import kraken
 from kraken import rpred
 from kraken.containers import BaselineLine
 from kraken.lib import models, xml
-import io
 import lxml.etree as ET  # for applying XSLT transformations
 import numpy as np  # matrix manipulation
 import os  # access to file system etc.
@@ -12,10 +12,77 @@ from PIL import Image  # load images
 import re
 from saxonche import PySaxonProcessor  # xslt transformations
 from shapely.geometry import Polygon  # for polygon operations such as area
+import threading  # locking of the shared OCR model
 import tqdm  # print for loop as progress bar
 
 from coordinate_manipulation import polygon_to_rectangle, divide_rectangle_into_equal_parts
 from glossit_dataclasses import Region, MainTextLine, LineType, GlossLine, PageObject, MAIN_TEXT_LINE_TYPES
+
+
+# Kraken OCR models that have already been read from disk, see load_ocr_model.
+_ocr_model_cache: dict[tuple[str, int, int], models.TorchSeqRecognizer] = {}
+
+# Guards both the loading of a model into _ocr_model_cache and the predictions made with it: a
+# TorchSeqRecognizer keeps state between calls, so a model that is shared by all pages must not be
+# used by two threads at the same time. It is reentrant, since load_ocr_model is typically called
+# by a caller that already holds the lock for the prediction that follows.
+ocr_model_lock = threading.RLock()
+
+
+def load_ocr_model(ocr_model_path: str) -> models.TorchSeqRecognizer:
+    """
+    Given a path to a Kraken OCR model, returns the loaded model.
+
+    The model is read from disk only the first time it is requested and is shared by all callers
+    afterward. Reading a Kraken model takes a considerable amount of time, and since every METSPage
+    of a METSBook uses the very same model, loading it once per page made opening a manuscript
+    unnecessarily slow.
+
+    Note that the returned model is shared, so any prediction made with it must hold ocr_model_lock.
+
+    :param ocr_model_path: Path to the Kraken OCR model (*.mlmodel).
+    :return: The loaded Kraken OCR model.
+    """
+    path = os.path.abspath(ocr_model_path)
+
+    # Modification time and size are part of the key so that a model file that was exchanged on disk
+    # while the program is running is read again instead of serving the outdated model.
+    file_stats = os.stat(path)
+    key = (path, file_stats.st_mtime_ns, file_stats.st_size)
+
+    with ocr_model_lock:
+        if key not in _ocr_model_cache:
+            _ocr_model_cache[key] = models.load_any(path)
+        return _ocr_model_cache[key]
+
+
+def strip_result_document(xslt_path: str) -> str:
+    """
+    Parse the XSLT as XML and remove all xsl:result-document elements.
+    Return the cleaned stylesheet as a string.
+
+    :param xslt_path: Path to the XSLT transformation file.
+    """
+    parser = ET.XMLParser(remove_comments=False, remove_blank_text=False)
+    tree = ET.parse(xslt_path, parser)
+    root = tree.getroot()
+
+    ns = {
+        'xsl': 'http://www.w3.org/1999/XSL/Transform'
+    }
+
+    # Remove all xsl:result-document elements entirely
+    for elem in root.xpath('//xsl:result-document', namespaces=ns):
+        parent = elem.getparent()
+        if parent is not None:
+            parent.remove(elem)
+
+    # Serialize back to text
+    return ET.tostring(
+        root,
+        encoding='unicode',
+        xml_declaration=False
+    )
 
 
 def apply_xslt_transformation(mets_path, xslt_path) -> BeautifulSoup:
@@ -33,20 +100,18 @@ def apply_xslt_transformation(mets_path, xslt_path) -> BeautifulSoup:
 
         proc = PySaxonProcessor(license=False)
 
-        with open(xslt_path, "r", encoding="utf-8") as file_handle:
-            raw_xslt = file_handle.readlines()
-            # filter out the xsl:result-document tags, but preserve nodes below it
-            filtered_xslt = "".join([line for line in raw_xslt if "xsl:result-document" not in line])
+        # Safely strip xsl:result-document elements
+        filtered_xslt = strip_result_document(xslt_path)
 
         xsltproc = proc.new_xslt30_processor()
         document = proc.parse_xml(xml_file_name=mets_path)
         executable = xsltproc.compile_stylesheet(stylesheet_text=filtered_xslt)
         output = executable.transform_to_string(xdm_node=document)
 
-        os.chdir(previous_path)  # change to previous CWD
+        os.chdir(previous_path)
         return BeautifulSoup(output, features="xml")
-    except Exception as e:  # in case anything goes wrong, change back to current CWD
-        print(e)
+    except Exception as e:
+        print("XSLT error:", e)
         os.chdir(previous_path)
 
 
@@ -419,7 +484,10 @@ class METSPage:
 
         pagexml = self._load_pagexml(self.pagexml_path)  # Kraken PageXML wrapper
         self._update_pagexml_lines(pagexml=pagexml)
-        self.pageimg = Image.open(self.image_path)
+
+        # Read image without having the need to keep the file handle open
+        with open(self.image_path, "rb") as image_file:
+            self.pageimg = Image.open(io.BytesIO(image_file.read()))
 
         if tei_path is not None:  # Only apply a transformation if a path was provided
             if tei is not None:  # if we have a tei provided, use it
@@ -731,8 +799,11 @@ class METSPage:
         """
         if pagexml is None:
             pagexml = self._load_pagexml(self.pagexml_path)  # Kraken PageXML wrapper
-        ocr_model = models.load_any(self.ocr_model_path)
-        self._ocr_predictions = OCRPredictionWrapper(ocr_model, self.pageimg, pagexml)
+
+        # The model is shared by all pages, hence the prediction has to hold the model lock
+        with ocr_model_lock:
+            ocr_model = load_ocr_model(self.ocr_model_path)
+            self._ocr_predictions = OCRPredictionWrapper(ocr_model, self.pageimg, pagexml)
 
     def _get_properties_from_line(self, line_id: str) -> dict:
         """
