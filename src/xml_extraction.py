@@ -22,6 +22,8 @@ def strip_result_document(xslt_path: str) -> str:
     """
     Parse the XSLT as XML and remove all xsl:result-document elements.
     Return the cleaned stylesheet as a string.
+
+    :param xslt_path: Path to the XSLT transformation file.
     """
     parser = ET.XMLParser(remove_comments=False, remove_blank_text=False)
     tree = ET.parse(xslt_path, parser)

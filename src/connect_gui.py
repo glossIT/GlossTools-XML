@@ -1,6 +1,7 @@
 import os
 import shutil
 
+from pathlib import Path
 from PySide6.QtGui import QIcon, QPainter, QPageSize, Qt, QKeySequence, QAction
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
@@ -513,9 +514,11 @@ class MainWindow(QMainWindow):
                     self.show_error_dialog.emit("Error", "Failed to compress data.")
                     return
 
+                save_p = Path(save_path)
+                temp_p = save_p.with_name(f"{save_p.name}.tmp")
                 try:
-                    with open(save_path, "wb") as file:
-                        file.write(compressed_data)
+                    temp_p.write_bytes(compressed_data)
+                    temp_p.replace(save_p)  # atomic save with tmp file
                 except umsgpack.PackException as e:
                     LoggerSingleton().logger.log_exception(e)
                     self.show_error_dialog.emit("Error", "Failed to write file to file system.")
@@ -629,8 +632,10 @@ class MainWindow(QMainWindow):
 
                 loading_window_content.action_text = "Saving to file system"
                 try:
-                    with open(save_path, "w", encoding="utf-8") as file:
-                        file.write(save_tei)
+                    save_p = Path(save_path)
+                    temp_p = save_p.with_name(f"{save_p.name}.tmp")
+                    temp_p.write_text(save_tei)
+                    temp_p.replace(save_p)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
                     self.show_error_dialog.emit("Error",
@@ -690,11 +695,16 @@ class MainWindow(QMainWindow):
 
         # Now, save the METS file, the images and the PageXML
         def on_export_mets():
-            with open(os.path.join(create_export_path, f"METS.xml"), "w") as file:
-                file.write(program_state.mets_book.construct_mets().prettify())
+            export_path = Path(os.path.join(create_export_path, f"METS.xml"))
+            temp_path = export_path.with_name(f"{export_path.name}.tmp")
+            temp_path.write_text(program_state.mets_book.construct_mets().prettify())
+            temp_path.replace(export_path)
+
             for idx, page in enumerate(program_state.mets_book):
-                with open(os.path.join(create_export_path, f"{idx:04d}.xml"), "w") as file:
-                    file.write(page.pagexml.prettify())
+                img_path = Path(os.path.join(create_export_path, f"{idx:04d}.xml"))
+                temp_img_path = img_path.with_name(f"{img_path.name}.tmp")
+                temp_img_path.write_text(page.pagexml.prettify())
+                temp_img_path.replace(img_path)
                 page.pageimg.save(os.path.join(create_export_path, f"{idx:04d}.jpg"))
 
         self.thread_function(on_export_mets)
