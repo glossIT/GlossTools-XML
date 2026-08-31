@@ -13,6 +13,7 @@ from connect_gui import start_gui
 from glossit_connect_glosses import GlossOnPageConnector
 from glossit_dataclasses import LineType, GlossLine, Word
 from glossit_sanity_checks import CheckStatus, RegionChecks, LineChecks, GlossChecks
+from gui_files.cyclic_access import CyclicCounter
 from xml_extraction import METSBook, apply_xslt_transformation
 
 
@@ -485,11 +486,13 @@ def bulk_create_glp(input_folder: str, ocr_model: str):
         program_state.path_to_tei = tei_filename
         program_state.path_to_model = ocr_filename
 
-        program_state.mets_book = METSBook(
+        program_state._mets_book = METSBook(
             mets_path=program_state.path_to_mets,
             tei_path=program_state.path_to_tei,
             ocr_model_path=program_state.path_to_model
         )
+
+        program_state._page_counter = CyclicCounter(len(program_state._mets_book))
 
         connections = []
         for page in program_state.mets_book:
