@@ -98,49 +98,60 @@ def sanity_check(
         filtered_gloss_checks = []
 
         if region_checks:
-            region_check_results = RegionChecks(page).check()
+            try:
+                region_check_results = RegionChecks(page).check()
 
-            # console output
-            console_lines += ["  Region checks:"]
-            console_lines += [result.to_console_string(verbose_output=verbose) for result in
-                              region_check_results]
-            console_lines.append("")
-            # plain text output
-            plain_lines += ["  Region checks:"]
-            plain_lines += [result.to_plain_string(verbose_output=verbose) for result in
-                            region_check_results]
-            plain_lines.append("")
+                # console output
+                console_lines += ["  Region checks:"]
+                console_lines += [result.to_console_string(verbose_output=verbose) for result in
+                                  region_check_results]
+                console_lines.append("")
+                # plain text output
+                plain_lines += ["  Region checks:"]
+                plain_lines += [result.to_plain_string(verbose_output=verbose) for result in
+                                region_check_results]
+                plain_lines.append("")
 
-            filtered_region_checks = [check for check in region_check_results if check.status in not_okay_types]
+                filtered_region_checks = [check for check in region_check_results if check.status in not_okay_types]
+            except Exception as e:
+                print(e)
+
         if line_checks:
-            line_check_results = LineChecks(page).check()
+            try:
+                line_check_results = LineChecks(page).check()
 
-            # console output
-            console_lines.append("  Line checks:")
-            console_lines += [result.to_console_string(verbose_output=verbose) for result in
-                              line_check_results]
-            console_lines.append("")
-            # plain text output
-            plain_lines.append("  Line checks:")
-            plain_lines += [result.to_plain_string(verbose_output=verbose) for result in
-                            line_check_results]
-            plain_lines.append("")
+                # console output
+                console_lines.append("  Line checks:")
+                console_lines += [result.to_console_string(verbose_output=verbose) for result in
+                                  line_check_results]
+                console_lines.append("")
+                # plain text output
+                plain_lines.append("  Line checks:")
+                plain_lines += [result.to_plain_string(verbose_output=verbose) for result in
+                                line_check_results]
+                plain_lines.append("")
 
-            filtered_line_checks = [check for check in line_check_results if check.status in not_okay_types]
+                filtered_line_checks = [check for check in line_check_results if check.status in not_okay_types]
+            except Exception as e:
+                print(e)
+
         if gloss_checks:
-            gloss_check_results = GlossChecks(page).check()
+            try:
+                gloss_check_results = GlossChecks(page).check()
 
-            # console output
-            console_lines.append("  Gloss checks:")
-            console_lines += [result.to_console_string(verbose_output=verbose) for result in
-                              gloss_check_results]
-            # plain text output
-            plain_lines.append("  Gloss checks:")
-            plain_lines += [result.to_plain_string(verbose_output=verbose) for result in
-                            gloss_check_results]
-            plain_lines.append("\n\n")
+                # console output
+                console_lines.append("  Gloss checks:")
+                console_lines += [result.to_console_string(verbose_output=verbose) for result in
+                                  gloss_check_results]
+                # plain text output
+                plain_lines.append("  Gloss checks:")
+                plain_lines += [result.to_plain_string(verbose_output=verbose) for result in
+                                gloss_check_results]
+                plain_lines.append("\n\n")
 
-            filtered_gloss_checks = [check for check in gloss_check_results if check.status in not_okay_types]
+                filtered_gloss_checks = [check for check in gloss_check_results if check.status in not_okay_types]
+            except Exception as e:
+                print(e)
 
         combined_filtered_checks = filtered_region_checks + filtered_line_checks + filtered_gloss_checks
         collected_errors.append(combined_filtered_checks)

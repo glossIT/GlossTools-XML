@@ -41,6 +41,8 @@ class CheckStatus(Enum):
         WARNING (ColoredString): This indicates that the test has failed in a way that indicates something
                                  has gone wrong, but also, perfectly fine annotated pages can sometimes fail this test.
         CRITICAL (ColoredString): The test has failed critically, immediate action must be taken.
+        NOT_APPLICABLE (ColoredString): In case a test could not be applied properly, e.g., checking against average
+                                        main text line width when there are no main text lines.
 
     Methods:
         get_string: Returns the plain string contained in the ColoredString object.
@@ -49,6 +51,7 @@ class CheckStatus(Enum):
     INFO = ColoredString("INFO", Fore.WHITE)
     WARNING = ColoredString("WARNING", Fore.YELLOW)
     CRITICAL = ColoredString("CRITICAL", Fore.RED)
+    NOT_APPLICABLE = ColoredString("NOT APPLICABLE", Fore.LIGHTBLACK_EX)
 
     def __str__(self) -> str:
         return str(self.value)
@@ -588,6 +591,16 @@ class LineChecks:
             for line in self.lines:
                 average_line_length += line.baseline[-1][0] - line.baseline[0][0]  # width of the line's baseline
             average_line_length /= len(self.lines)
+        else:
+            na_description = "There are no main text lines present in this page."
+            return CheckResult(
+                status=CheckStatus.NOT_APPLICABLE,
+                name="Line widths are greater than 60% of average text line",
+                error_description=na_description,
+                verbose_description=na_description,
+                erroneous_instances=[],
+                error_polygons=[],
+            )
 
         faulty_lines = []
         exceeding_percentages = []
@@ -597,7 +610,11 @@ class LineChecks:
                     text_line_length = line.baseline[-1][0] - line.baseline[0][0]
                     if text_line_length <= 0.6 * average_line_length:
                         faulty_lines.append(line)
-                        exceeding_percentages.append(text_line_length / average_line_length)
+                        try:
+                            exceeding_percentages.append(text_line_length / average_line_length)
+                        except ZeroDivisionError:
+                            exceeding_percentages.append(np.nan)
+
 
         success = (len(faulty_lines) == 0)
 
@@ -914,6 +931,16 @@ class GlossChecks:
             for line in self.lines:
                 average_line_length += line.baseline[-1][0] - line.baseline[0][0]  # width of the line's baseline
             average_line_length /= len(self.lines)
+        else:
+            na_description = "There are no main text lines present in this page."
+            return CheckResult(
+                status=CheckStatus.NOT_APPLICABLE,
+                name="Gloss widths are smaller than 60% of average text line",
+                error_description=na_description,
+                verbose_description=na_description,
+                erroneous_instances=[],
+                error_polygons=[],
+            )
 
         faulty_glosses = []
         exceeding_percentages = []
@@ -921,7 +948,10 @@ class GlossChecks:
             gloss_line_length = gloss.baseline[-1][0] - gloss.baseline[0][0]
             if gloss_line_length >= 0.6 * average_line_length:
                 faulty_glosses.append(gloss)
-                exceeding_percentages.append(gloss_line_length / average_line_length)
+                try:
+                    exceeding_percentages.append(gloss_line_length / average_line_length)
+                except ZeroDivisionError:
+                    exceeding_percentages.append(np.nan)
 
         success = (len(faulty_glosses) == 0)
 
@@ -1037,8 +1067,8 @@ class GlossChecks:
                 if region.coordinates.intersects(gloss.coordinates):
                     current_intersections.append(region)
                     try:
-                        current_areas.append(gloss.coordinates.intersection(region.coordinates).area/gloss.coordinates.area)
-                    except shapely.errors.GEOSException:
+                        current_areas.append(gloss.coordinates.intersection(region.coordinates).area / gloss.coordinates.area)
+                    except (shapely.errors.GEOSException, ZeroDivisionError):
                         current_areas.append(np.nan)
             if len(current_intersections) == 0 or len(current_intersections) > 1:
                 faulty_glosses.append(gloss)
