@@ -485,37 +485,39 @@ def bulk_create_glp(input_folder: str, ocr_model: str):
     program_state = ProgramStateSingleton().program_state
 
     for page_name in tqdm(mets_names):
-        program_state.reset()
+        try:
+            program_state.reset()
 
-        mets_filename = os.path.abspath(os.path.join(input_folder, f"{page_name}_METS.xml"))
-        tei_filename = os.path.abspath(os.path.join(input_folder, f"{page_name}_TEI.xml"))
-        save_filename = os.path.abspath(os.path.join(input_folder, f"{page_name}.glp"))
+            mets_filename = os.path.abspath(os.path.join(input_folder, f"{page_name}_METS.xml"))
+            tei_filename = os.path.abspath(os.path.join(input_folder, f"{page_name}_TEI.xml"))
+            save_filename = os.path.abspath(os.path.join(input_folder, f"{page_name}.glp"))
 
-        ocr_filename = os.path.abspath(ocr_model)
+            ocr_filename = os.path.abspath(ocr_model)
 
-        program_state.path_to_mets = mets_filename
-        program_state.path_to_tei = tei_filename
-        program_state.path_to_model = ocr_filename
+            program_state.path_to_mets = mets_filename
+            program_state.path_to_tei = tei_filename
+            program_state.path_to_model = ocr_filename
 
-        program_state._mets_book = METSBook(
-            mets_path=program_state.path_to_mets,
-            tei_path=program_state.path_to_tei,
-            ocr_model_path=program_state.path_to_model
-        )
+            program_state._mets_book = METSBook(
+                mets_path=program_state.path_to_mets,
+                tei_path=program_state.path_to_tei,
+                ocr_model_path=program_state.path_to_model
+            )
+            program_state._page_counter = CyclicCounter(len(program_state._mets_book))
 
-        program_state._page_counter = CyclicCounter(len(program_state._mets_book))
+            connections = []
+            for page in program_state._mets_book:
+                connections.append(ObservableGlossOnPageConnector(page))
+            program_state._gloss_connection_handler.connector_list = connections
 
-        connections = []
-        for page in program_state.mets_book:
-            connections.append(ObservableGlossOnPageConnector(page))
-        program_state.gloss_connection_handler.connector_list = connections
+            save_file = program_state.to_dict(tqdm_progress=None)
+            serialized_data = umsgpack.dumps(save_file)
+            compressed_data = zlib.compress(serialized_data)
 
-        save_file = program_state.to_dict(tqdm_progress=None)
-        serialized_data = umsgpack.dumps(save_file)
-        compressed_data = zlib.compress(serialized_data)
-
-        with open(save_filename, "wb") as file:
-            file.write(compressed_data)
+            with open(save_filename, "wb") as file:
+                file.write(compressed_data)
+        except ValueError as e:
+            print(f"File {page_name} could not be processed: {e}")
 
 
 if __name__ == "__main__":
