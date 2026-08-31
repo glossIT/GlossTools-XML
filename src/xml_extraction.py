@@ -18,6 +18,33 @@ from coordinate_manipulation import polygon_to_rectangle, divide_rectangle_into_
 from glossit_dataclasses import Region, MainTextLine, LineType, GlossLine, PageObject, MAIN_TEXT_LINE_TYPES
 
 
+def strip_result_document(xslt_path: str) -> str:
+    """
+    Parse the XSLT as XML and remove all xsl:result-document elements.
+    Return the cleaned stylesheet as a string.
+    """
+    parser = ET.XMLParser(remove_comments=False, remove_blank_text=False)
+    tree = ET.parse(xslt_path, parser)
+    root = tree.getroot()
+
+    ns = {
+        'xsl': 'http://www.w3.org/1999/XSL/Transform'
+    }
+
+    # Remove all xsl:result-document elements entirely
+    for elem in root.xpath('//xsl:result-document', namespaces=ns):
+        parent = elem.getparent()
+        if parent is not None:
+            parent.remove(elem)
+
+    # Serialize back to text
+    return ET.tostring(
+        root,
+        encoding='unicode',
+        xml_declaration=False
+    )
+
+
 def apply_xslt_transformation(mets_path, xslt_path) -> BeautifulSoup:
     """
     This function takes the path to the METS file and the path to the XSLT transformation
@@ -33,20 +60,18 @@ def apply_xslt_transformation(mets_path, xslt_path) -> BeautifulSoup:
 
         proc = PySaxonProcessor(license=False)
 
-        with open(xslt_path, "r", encoding="utf-8") as file_handle:
-            raw_xslt = file_handle.readlines()
-            # filter out the xsl:result-document tags, but preserve nodes below it
-            filtered_xslt = "".join([line for line in raw_xslt if "xsl:result-document" not in line])
+        # Safely strip xsl:result-document elements
+        filtered_xslt = strip_result_document(xslt_path)
 
         xsltproc = proc.new_xslt30_processor()
         document = proc.parse_xml(xml_file_name=mets_path)
         executable = xsltproc.compile_stylesheet(stylesheet_text=filtered_xslt)
         output = executable.transform_to_string(xdm_node=document)
 
-        os.chdir(previous_path)  # change to previous CWD
+        os.chdir(previous_path)
         return BeautifulSoup(output, features="xml")
-    except Exception as e:  # in case anything goes wrong, change back to current CWD
-        print(e)
+    except Exception as e:
+        print("XSLT error:", e)
         os.chdir(previous_path)
 
 
