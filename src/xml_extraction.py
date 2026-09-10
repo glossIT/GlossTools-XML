@@ -56,63 +56,84 @@ def load_ocr_model(ocr_model_path: str) -> models.TorchSeqRecognizer:
         return _ocr_model_cache[key]
 
 
-def strip_result_document(xslt_path: str) -> str:
+def inline_result_document(xslt_path: str) -> str:
     """
-    Parse the XSLT as XML and remove all xsl:result-document elements.
-    Return the cleaned stylesheet as a string.
+    Parse the XSLT and replace each xsl:result-document with its children,
+    effectively inlining all secondary result trees into the primary output.
+
+    If your XSLT previously wrote *everything* through xsl:result-document,
+    this will convert that content into the main result tree.
 
     :param xslt_path: Path to the XSLT transformation file.
+    :return: Rewritten stylesheet as a string.
     """
     parser = ET.XMLParser(remove_comments=False, remove_blank_text=False)
     tree = ET.parse(xslt_path, parser)
     root = tree.getroot()
 
-    ns = {
-        'xsl': 'http://www.w3.org/1999/XSL/Transform'
-    }
+    ns = {'xsl': 'http://www.w3.org/1999/XSL/Transform'}
 
-    # Remove all xsl:result-document elements entirely
+    # For each xsl:result-document:
+    #   - insert its children in place of itself
+    #   - remove the wrapper
     for elem in root.xpath('//xsl:result-document', namespaces=ns):
         parent = elem.getparent()
-        if parent is not None:
-            parent.remove(elem)
+        if parent is None:
+            continue
 
-    # Serialize back to text
-    return ET.tostring(
-        root,
-        encoding='unicode',
-        xml_declaration=False
-    )
+        index = parent.index(elem)
+
+        # Insert children of result-document at its position
+        for child in list(elem):
+            parent.insert(index, child)
+            index += 1
+
+        # Remove the result-document wrapper
+        parent.remove(elem)
+
+    return ET.tostring(root, encoding='unicode', xml_declaration=False)
 
 
-def apply_xslt_transformation(mets_path, xslt_path) -> BeautifulSoup:
+def apply_xslt_transformation(mets_path: str, xslt_path: str) -> BeautifulSoup:
     """
-    This function takes the path to the METS file and the path to the XSLT transformation
-    and returns the BeautifulSoup object that contains the XSLT transformation of the METS.
+    Apply an XSLT transformation to a METS file using Saxon,
+    inlining xsl:result-document contents into the primary result.
 
     :param mets_path: Path to the METS as exported from eScriptorium.
     :param xslt_path: Path to the TEI XSLT transformation.
-    :return: BeautifulSoup of the transformed METS.
+    :return: BeautifulSoup of the transformed METS (TEI, etc.).
     """
     previous_path = os.getcwd()
+    xslt_dir = os.path.dirname(os.path.abspath(xslt_path))
+
     try:
-        os.chdir(os.path.dirname(xslt_path))
+        os.chdir(xslt_dir)
 
-        proc = PySaxonProcessor(license=False)
+        # Initialize Saxon processor
+        with PySaxonProcessor(license=False) as proc:
+            xsltproc = proc.new_xslt30_processor()
 
-        # Safely strip xsl:result-document elements
-        filtered_xslt = strip_result_document(xslt_path)
+            # Rewrite stylesheet to inline result-document content
+            rewritten_xslt = inline_result_document(xslt_path)
 
-        xsltproc = proc.new_xslt30_processor()
-        document = proc.parse_xml(xml_file_name=mets_path)
-        executable = xsltproc.compile_stylesheet(stylesheet_text=filtered_xslt)
-        output = executable.transform_to_string(xdm_node=document)
+            # Parse the (possibly huge) METS via Saxon directly
+            document = proc.parse_xml(xml_file_name=mets_path)
+
+            # Compile the rewritten stylesheet from text
+            executable = xsltproc.compile_stylesheet(stylesheet_text=rewritten_xslt)
+
+            # Transform to string (now the TEI is the primary result)
+            output = executable.transform_to_string(xdm_node=document)
 
         os.chdir(previous_path)
+
+        # Parse result with BeautifulSoup
         return BeautifulSoup(output, features="xml")
+
     except Exception as e:
-        print("XSLT error:", e)
         os.chdir(previous_path)
+        print("XSLT error:", e)
+        raise
 
 
 class METSBook:

@@ -19,21 +19,7 @@ transformations, etc. In this toolbox, there are currently two projects:
 6. If necessary, delete the `matplotlib` font cache. It is usually a JSON file in the path `~/.cache/matplotlib`. 
 
 
-## Apply XSLT transformation to METS File
-
-The eScriptorium METS file is transformed using an XSLT transformation in order to obtain a valid TEI file. To apply
-an XSLT file to a METS file, the tool provides a command-line interface.
-
-### How to Use
-
-In the command line inside the `.glossit` environment, execute the command
-`python main.py xslt --mets <path_to_mets_file> --xslt <path_to_xslt_file> --output-file <path_to_output_file>`, where
-* `<path_to_mets_file>` is the path to the eScriptorium METS XML file.
-* `<path_to_xslt_file>` is the path to the XSLT transformation.
-* `<path_to_output_file>` is the path to the file where the transformed output should be saved. It is always saved as
-  an XML file.
-
-## METS Output Sanity Checks
+## 1. METS Output Sanity Checks
 
 ### Description
 
@@ -136,9 +122,78 @@ In case you want the suspicious lines to be marked in the PageXML files, add ` -
 resulting in `python main.py sanity --mets <path_to_mets_file> --output-file <path_to_output_file> --overwrite`. This
 will then mark suspicious regions with an attribute corresponding to the result type, e.g., `sanity="critical"`.
 
-## Connecting Glosses
 
-### Description
+## 2. Apply XSLT transformation to METS File
+
+The eScriptorium METS file is transformed using an XSLT transformation in order to obtain a valid TEI file. To apply
+an XSLT file to a METS file, the tool provides a command-line interface.
+
+### How to Use
+
+In the command line inside the `.glossit` environment, execute the command
+`python main.py xslt --mets <path_to_mets_file> --xslt <path_to_xslt_file> --output-file <path_to_output_file>`, where
+* `<path_to_mets_file>` is the path to the eScriptorium METS XML file.
+* `<path_to_xslt_file>` is the path to the XSLT transformation.
+* `<path_to_output_file>` is the path to the file where the transformed output should be saved. It is always saved as
+  an XML file.
+
+## 3. Bulk Processing of Files
+
+In our project workflow, we decided to have one separate GlossIT Connector GUI project file (*.glp) per manuscript page.
+The bulk processing tools allow for an efficient three-step pipeline for transforming METS of large manuscripts into
+single-page *.glp files.
+
+To effectively create the `*.glp` files automatically, make sure that in your *input folder*, you have the following
+files ready:
+    * Complete METS file of the whole manuscript with the name `METS.xml`
+    * Individual PageXML of manuscript pages as indicated by METS, e.g., `181_5da43_default.xml`
+    * Individual image files (`*.jpg`) of manuscript pages as indicated by METS, e.g., `181_5da43_default.jpg`
+
+The first bulk operation is *bulk-split-mets*. It takes the path to the input folder and splits the full `METS.xml`
+into single-page METS for each individual manuscript page following the naming schema where the resulting file name
+consists of the original PageXML/image filename with added `_METS.xml`, e.g., `181_5da43_default_METS.xml`.
+
+The second bulk operation is *bulk-apply-xslt*. Given an input folder as prepared by `bulk-split-mets`, it takes all
+files that end in `_METS.xml` (i.e., single-page METS files) and applies a given XSLT transformation to them. The XSLT
+output for each single-page METS has a filename similar to the single-page METS, but with `_METS` replaced by `_TEI`.
+E.g., the single-page METS `181_5da43_default_METS.xml` is transformed and saved as `181_5da43_default_TEI.xml`.
+
+The third bulk operation is *bulk-create-glp*. Given an input folder as prepared by `bulk-apply-xslt`, it takes a
+Kraken OCR *.mlmodel, and weaves it together with all corresponding `*_METS.xml` and `*_TEI.xml`, resulting in a *.glp
+file. For example, it will take the PageXML `181_5da43_default_METS.xml` and the TEI file `181_5da43_default_TEI.jpg`
+and makes a standalone *.glp file `181_5da43_default.glp` including word positions out of it. This file is then saved
+into the input folder.
+
+### How to Use
+
+1. **bulk-split-mets**
+   * `python main.py bulk-split-mets --input-folder <path_to_input_folder>`
+   * `<path_to_input_folder>` is the path to the folder that contains a manuscript METS with the name `METS.xml`.
+   
+2. **bulk-apply-xslt**
+   * `python main.py bulk-apply-xslt --input-folder <path_to_input_folder> --xslt <path_to_xslt_file>`
+   * `<path_to_input_folder>` is the path to the folder that contains the pairs `<name>_METS.xml` and `<name>_TEI.xml`.
+   * `<path_to_xslt_file>` is the path to the XSLT transformation.
+
+3. **bulk-create-glp**
+   * `python main.py bulk-create-glp --input-folder <path_to_input_folder> --ocr-model <path_to_ocr_model>`
+   * `<path_to_input_folder>` is the path to the folder that contains the pairs `<name>_METS.xml` and `<name>_TEI.xml`.
+   * `<path_to_ocr_model>` is the path to the Kraken OCR model (needed for automatically determining word boundaries).
+
+  
+## 4. GlossIT Gloss Connector GUI
+
+To facilitate the connection of glosses/reference signs/main text words, the GlossIT Gloss Connector is the right tool!
+It provides an intuitive graphical user interface for manual connection of glosses.
+
+![The GlossIT Gloss Connector GUI in Action](./gui-screenshot.png)
+
+#### How to Use
+
+`python main.py gloss-connector`
+
+## Appendix: How does it work?
+
 Currently, the human annotators must follow a complicated manual workflow to annotate glosses. We differentiate between
 two types of glosses: i) Direct glosses, i.e., glosses that refer to a word in the main text and are fully described by
 this relationship; and ii) indirect glosses, where a gloss (usually as a marginal gloss) is connected to the word(s) it
@@ -155,7 +210,7 @@ For automatically connecting glosses, we divide the process into two steps:
 2. **Combine Glosses Based on Coordinates:** Since step 1 yielded bounding boxes for each word and also each gloss, how
    can we use this information to automatically combine the glosses/references that belong together?
 
-### Annotation Process
+#### Annotation Process
 
 1. The glosses and reference signs must be marked in eScriptorium.
 2. Export the XML file from eScriptorium.
@@ -166,7 +221,7 @@ For automatically connecting glosses, we divide the process into two steps:
 5. Connect the gloss to the reference sign and the unique gloss ID `xml:id` (e.g., `@target="#gl1"` if the gloss has the
    id `gl1`).
 
-### 1. Word Bounding Box Detection
+### Word Bounding Box Detection
 
 The annotated export from eScriptorium (PageXML and later XSLT transformations) provide line regions, but do **not**
 provide word bounding boxes (*BB*). However, word BBs are necessary for the later step of automatically connecting
@@ -198,28 +253,7 @@ then combined to get to word-level BB.
 8. Return the type of the line (e.g., `default` for main text lines, or `InterlinearLine:signe_de_renvoi` for Signe de
    Renvoi) and the individual words of this line including word BB.
 
-### 2. GlossIT Gloss Connector GUI
-
-To facilitate the connection of glosses/reference signs/main text words, the GlossIT Gloss Connector is the right tool!
-It provides an intuitive graphical user interface for manual connection of glosses.
-
-![The GlossIT Gloss Connector GUI in Action](./gui-screenshot.png)
-
-#### How to Use
-
-`python main.py gloss-connector`
-
-#### Known Bugs
-
-* ![yellow](https://placehold.co/10x10/dddd00/dddd00.png) <span style="color:yellow">(LOW PRIORITY)</span>
-  When creating projects with a large amount of manuscript pages, the ulimit may be insufficient. For example, on BB's
-  mac, the ulimit is 256, so opening a manuscript with more pages results in an error. However, this may indicate that
-  the files are not properly closed after reading (despite being encapsulated in a with statement), so this should be
-  investigated thoroughly.
-* ![yellow](https://placehold.co/10x10/dddd00/dddd00.png) <span style="color:yellow">(LOW PRIORITY)</span>
-  Threaded functions cannot be called from within a threaded function. This will lead to a crash of the application.
-
-### 3. Automatically Combining Glosses Based on Coordinates
+### Future Work: Automatically Combining Glosses Based on Coordinates
 
 #### Symbolic Rules
 
@@ -252,46 +286,3 @@ TBD
   XSLT transformation to the METS XML).
 * `<path_to_ocr_model>` is the path to the Kraken OCR model (needed for automatically determining word boundaries).
 * `<path_to_output_file>` is the path to where the PDF file containing the gloss connections should be saved.
-
-### 4. Bulk Processing of Files
-
-In our project workflow, we decided to have one separate GlossIT Connector GUI project file (*.glp) per manuscript page.
-The bulk processing tools allow for an efficient three-step pipeline for transforming METS of large manuscripts into
-single-page *.glp files.
-
-To effectively create the *.glp files automatically, make sure that in your *input folder*, you have the following files
-ready:
-    * Complete METS file of the whole manuscript with the name `METS.xml`
-    * Individual PageXML of manuscript pages as indicated by METS, e.g., `181_5da43_default.xml`
-    * Individual image files (*.jpg) of manuscript pages as indicated by METS, e.g., `181_5da43_default.jpg`
-
-The first bulk operation is *bulk-split-mets*. It takes the path to the input folder and splits the full `METS.xml`
-into single-page METS for each individual manuscript page following the naming schema where the resulting file name
-consists of the original PageXML/image filename with added `_METS.xml`, e.g., `181_5da43_default_METS.xml`.
-
-The second bulk operation is *bulk-apply-xslt*. Given an input folder as prepared by `bulk-split-mets`, it takes all
-files that end in `_METS.xml` (i.e., single-page METS files) and applies a given XSLT transformation to them. The XSLT
-output for each single-page METS has a filename similar to the single-page METS, but with `_METS` replaced by `_TEI`.
-E.g., the single-page METS `181_5da43_default_METS.xml` is transformed and saved as `181_5da43_default_TEI.xml`.
-
-The third bulk operation is *bulk-create-glp*. Given an input folder as prepared by `bulk-apply-xslt`, it takes a
-Kraken OCR *.mlmodel, and weaves it together with all corresponding `*_METS.xml` and `*_TEI.xml`, resulting in a *.glp
-file. For example, it will take the PageXML `181_5da43_default_METS.xml` and the TEI file `181_5da43_default_TEI.jpg`
-and makes a standalone *.glp file `181_5da43_default.glp` including word positions out of it. This file is then saved
-into the input folder.
-
-### How to Use
-
-1. **bulk-split-mets**
-   * `python main.py bulk-split-mets --input-folder <path_to_input_folder>`
-   * `<path_to_input_folder>` is the path to the folder that contains a manuscript METS with the name `METS.xml`.
-   
-2. **bulk-apply-xslt**
-   * `python main.py bulk-apply-xslt --input-folder <path_to_input_folder> --xslt <path_to_xslt_file>`
-   * `<path_to_input_folder>` is the path to the folder that contains the pairs `<name>_METS.xml` and `<name>_TEI.xml`.
-   * `<path_to_xslt_file>` is the path to the XSLT transformation.
-
-3. **bulk-create-glp**
-   * `python main.py bulk-create-glp --input-folder <path_to_input_folder> --ocr-model <path_to_ocr_model>`
-   * `<path_to_input_folder>` is the path to the folder that contains the pairs `<name>_METS.xml` and `<name>_TEI.xml`.
-   * `<path_to_ocr_model>` is the path to the Kraken OCR model (needed for automatically determining word boundaries).
