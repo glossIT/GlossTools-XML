@@ -94,7 +94,17 @@ def add_ids_to_page(page: METSPage, tei: BeautifulSoup) -> BeautifulSoup:
             ab_tag = tei.find(
                 lambda tag: tag.name == "ab" and tag.get("facs") == f"#{gloss.id}" and tag.find_parent("gloss")
             )
-            ab_tag.parent["xml:id"] = gloss_line_id_to_tei_id(gloss)
+            if ab_tag is not None:
+                ab_tag.parent["xml:id"] = gloss_line_id_to_tei_id(gloss)
+            else:
+                # if it is a running header <fw> tag
+                fw_tag = tei.find(
+                    lambda tag: tag.name == "fw" and tag.get("facs") == f"#{gloss.id}"
+                )
+                if fw_tag is None:
+                    pass  # nothing to do is required
+                else:
+                    raise ValueError("Could not find parent <gloss> tag for <ab> element.")
 
         return tei
 

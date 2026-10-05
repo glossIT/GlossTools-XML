@@ -180,7 +180,7 @@ def sanity_check(
 
             # Annotate it in the PageXML
             pagexml = None
-            with open(page.pagexml_path, "r") as file:
+            with open(page.pagexml_path, "r", encoding="utf-8") as file:
                 pagexml = BeautifulSoup(file, features="xml")
 
                 # we need to set a rendition so that a framework can operate

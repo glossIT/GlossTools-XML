@@ -13,6 +13,8 @@ import umsgpack
 import uuid
 import zlib
 
+from bs4 import BeautifulSoup
+
 from constants import StringConstants, IntConstants
 from glossit_connect_glosses import GlossOnPageConnector
 from gui_files.dialog_change_settings import ChangeSettingsDialog
@@ -109,6 +111,7 @@ class MainWindow(QMainWindow):
 
     Private Methods:
         _new_project: Opens an OpenProjectFileSelectDialog and initializes the program state singleton accordingly.
+        _change_tei: Asks the user for a TEI file and updates the internal TEI data accordingly.
         _ask_user_open_project: Asks the user to select a glp file and loads it into the program state.
         _open_project (str): Given a file path, attempts to open the file as a project.
         _save_project (bool): Saves the current project to the previously saved file. If this is the first save,
@@ -229,9 +232,9 @@ class MainWindow(QMainWindow):
         elif key == Qt.Key.Key_Z and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.thread_function(program_state.undo)
         elif key == Qt.Key.Key_D and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            import objgraph
-            objgraph.show_growth(limit=10)
-            print("\n")
+            pass
+            # DEBUG
+            #self._change_tei()
 
     def closeEvent(self, event):
         """
@@ -356,6 +359,33 @@ class MainWindow(QMainWindow):
                 self.enable_buttons.emit()
 
             self.thread_function(on_new, loading_window_content=loading_window_content)
+
+    def _change_tei(self):
+        """
+        Asks the user for a TEI file and updates the internal TEI data accordingly.
+        """
+        LoggerSingleton().logger.log_info(f"MainWindow._change_tei()")
+        program_state = ProgramStateSingleton().program_state
+
+        path_to_tei, _ = QFileDialog.getOpenFileName(
+            self,
+            caption="Open TEI XML File",
+            filter="XML File (*.xml);;All Files (*.*)"
+        )
+
+        LoggerSingleton().logger.log_info(f"User selected TEI path {path_to_tei}")
+        if path_to_tei:
+            with open(path_to_tei, "r", encoding="utf-8") as tei_file:
+                tei_file = BeautifulSoup(tei_file.read(), "xml")
+            program_state.path_to_tei = path_to_tei
+            program_state.mets_book.tei_path = path_to_tei
+            program_state.mets_book.tei = tei_file
+            for gloss_connector in program_state.gloss_connection_handler:
+                gloss_connector.clean_tei = tei_file
+            for page in program_state.mets_book:
+                page.tei = tei_file
+
+        program_state.clear_metsbook_cache()
 
     def _ask_user_open_project(self):
         """
@@ -634,7 +664,7 @@ class MainWindow(QMainWindow):
                 try:
                     save_p = Path(save_path)
                     temp_p = save_p.with_name(f"{save_p.name}.tmp")
-                    temp_p.write_text(save_tei)
+                    temp_p.write_text(save_tei, encoding="utf-8")
                     temp_p.replace(save_p)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
@@ -697,13 +727,13 @@ class MainWindow(QMainWindow):
         def on_export_mets():
             export_path = Path(os.path.join(create_export_path, f"METS.xml"))
             temp_path = export_path.with_name(f"{export_path.name}.tmp")
-            temp_path.write_text(program_state.mets_book.construct_mets().prettify())
+            temp_path.write_text(program_state.mets_book.construct_mets().prettify(), encoding="utf-8")
             temp_path.replace(export_path)
 
             for idx, page in enumerate(program_state.mets_book):
                 img_path = Path(os.path.join(create_export_path, f"{idx:04d}.xml"))
                 temp_img_path = img_path.with_name(f"{img_path.name}.tmp")
-                temp_img_path.write_text(page.pagexml.prettify())
+                temp_img_path.write_text(page.pagexml.prettify(), encoding="utf-8")
                 temp_img_path.replace(img_path)
                 page.pageimg.save(os.path.join(create_export_path, f"{idx:04d}.jpg"))
 

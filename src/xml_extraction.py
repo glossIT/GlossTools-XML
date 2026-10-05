@@ -193,7 +193,7 @@ class METSBook:
         self.number_of_pages = self._get_number_of_pages(self.mets_path)
 
         if self.tei_path is not None:  # only set the tei member if a path was provided
-            with open(self.tei_path, "r") as file:
+            with open(self.tei_path, "r", encoding="utf-8") as file:
                 self.tei = BeautifulSoup(file.read(), features="xml")
         else:
             self.tei = None
@@ -784,9 +784,9 @@ class METSPage:
         :param ocr_model_path: Path to the new OCR model.
         :return:
         """
-        with open(tei_path, "r") as file_handle:
+        with open(tei_path, "r", encoding="utf-8") as file_handle:
             tei = BeautifulSoup(file_handle.read(), features="xml")
-        with open(pagexml_path, "r") as file_handle:
+        with open(pagexml_path, "r", encoding="utf-8") as file_handle:
             pagexml = BeautifulSoup(file_handle.read(), features="xml")
 
         self.tei_path = tei_path
