@@ -375,7 +375,7 @@ class MainWindow(QMainWindow):
 
         LoggerSingleton().logger.log_info(f"User selected TEI path {path_to_tei}")
         if path_to_tei:
-            with open(path_to_tei, "r") as tei_file:
+            with open(path_to_tei, "r", encoding="utf-8") as tei_file:
                 tei_file = BeautifulSoup(tei_file.read(), "xml")
             program_state.path_to_tei = path_to_tei
             program_state.mets_book.tei_path = path_to_tei
@@ -664,7 +664,7 @@ class MainWindow(QMainWindow):
                 try:
                     save_p = Path(save_path)
                     temp_p = save_p.with_name(f"{save_p.name}.tmp")
-                    temp_p.write_text(save_tei)
+                    temp_p.write_text(save_tei, encoding="utf-8")
                     temp_p.replace(save_p)
                 except Exception as e:
                     LoggerSingleton().logger.log_exception(e)
@@ -727,13 +727,13 @@ class MainWindow(QMainWindow):
         def on_export_mets():
             export_path = Path(os.path.join(create_export_path, f"METS.xml"))
             temp_path = export_path.with_name(f"{export_path.name}.tmp")
-            temp_path.write_text(program_state.mets_book.construct_mets().prettify())
+            temp_path.write_text(program_state.mets_book.construct_mets().prettify(), encoding="utf-8")
             temp_path.replace(export_path)
 
             for idx, page in enumerate(program_state.mets_book):
                 img_path = Path(os.path.join(create_export_path, f"{idx:04d}.xml"))
                 temp_img_path = img_path.with_name(f"{img_path.name}.tmp")
-                temp_img_path.write_text(page.pagexml.prettify())
+                temp_img_path.write_text(page.pagexml.prettify(), encoding="utf-8")
                 temp_img_path.replace(img_path)
                 page.pageimg.save(os.path.join(create_export_path, f"{idx:04d}.jpg"))
 
