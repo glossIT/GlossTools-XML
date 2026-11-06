@@ -320,11 +320,11 @@ class GlossOnPageConnector:
         if input_tei is None:
             input_tei = self._clean_tei
 
+        tei = add_ids_to_page(self.page, input_tei)
+
         # no chains at all means nothing left to do
         if len(chains) == 0:
-            return input_tei
-
-        tei = add_ids_to_page(chains[0][0].start.page, input_tei)
+            return tei
 
         def chain_to_list(chain) -> list[GlossLine | Word]:
             return_list = []
